@@ -9,7 +9,10 @@ start = time.time()
 
 
 length_of_price_grid = 10
-n_of_lambdas = 3
+min_price, max_price = 0.5, 1.5
+n_of_lambdas_per_dim = 3
+max_iters = 5
+error_tol = 1e-5
 
 def myopic_price(lambdas: np.ndarray, betas_transition=betas_transition):
     """
@@ -32,7 +35,6 @@ def period_profit(p, lambdas, betas_transition=betas_transition):
     return (p-c)*np.e**logq
 
 
-
 def v0(lambdas_except_last: np.ndarray) -> Callable:
     """
 
@@ -44,14 +46,17 @@ def v0(lambdas_except_last: np.ndarray) -> Callable:
     return period_profit(optimal_price, full_lambdas)
 
 
-price_grid = np.linspace(0.5, 1.5, num=length_of_price_grid)
-simplex3d = src.generate_simplex_3dims(n_per_dim=n_of_lambdas)
+price_grid = np.linspace(min_price, max_price, num=length_of_price_grid)
+simplex3d = src.generate_simplex_3dims(n_per_dim=n_of_lambdas_per_dim)
 
 
 if __name__ == "__main__":
-    v, policy, error = src.compute_fixed_point(src.bellman_operator, v0, error_tol=1e-5, max_iter=5, verbose=1,
-                        skip=1, eval_grid=simplex3d[:, 0:2], price_grid=price_grid,
-                        lambda_simplex=simplex3d, period_return_f=period_profit)
+    v, policy, error = src.compute_fixed_point(src.bellman_operator, v0, error_tol=error_tol,
+                                               max_iter=max_iters, verbose=1,
+                                               skip=1, eval_grid=simplex3d[:, 0:2],
+                                               price_grid=price_grid,
+                                               lambda_simplex=simplex3d,
+                                               period_return_f=period_profit)
 
     print("Error : ", error)
 
