@@ -10,7 +10,6 @@ def generate_simplex_3dims(n_per_dim=20):
                      if np.allclose(x+y+z, 1.0)])
 
 
-
 def compute_fixed_point(T, v, error_tol=1e-5, max_iter=50, verbose=1,
                         skip=10, eval_grid=None, *args,
                         **kwargs):

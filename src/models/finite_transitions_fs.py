@@ -27,16 +27,13 @@ In words, $p_l (x_t| a_{t-1}, x_{t-1})$ is the probability that the $l$
 transition probability gave to $x_t$ actually happening. If the probability of $x_t$ (the state that actually occured) is high under $l$, then that $l$ transition probability will get a higher weight in the beliefs of next period.
 """
 
-import sys
-sys.path.append("..")
+
 from src.constants import *
-from src.utils import *
 import numpy as np
 from scipy.stats import norm
 import scipy.integrate as integrate
 from typing import Callable
 from scipy.interpolate import LinearNDInterpolator
-
 
 
 #TODO: vectorize over action (price). Hadamard + dot. Check black notebook
@@ -69,28 +66,7 @@ def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     Action is the price
     """
     return np.array([norm.pdf(new_state, loc=(α + beta*np.log(action)),
-                              scale=σ_ɛ)  for beta in betas_transition  ])
-
-# TODO: send to tests
-def test_update_lambdas():
-    new_lambdas = update_lambdas(2.1, dmd_transition_fs, np.array([0., 0., 1.]),
-                                 action=0.8, old_state="meh")
-    assert np.isfinite(new_lambdas).all()
-    print("update lambdas tested")
-
-
-test_update_lambdas()
-
-# TODO: send to tests
-def test_belief():
-    belief_at_x = belief(3.1, dmd_transition_fs,
-                         [0., 0., 1.], 3.0, old_state='meh')
-    assert isinstance(belief_at_x, float)
-    assert np.isfinite(belief_at_x)
-    print("new belief f tested")
-
-
-test_belief()
+                              scale=σ_ɛ) for beta in betas_transition])
 
 
 def exp_b_from_lambdas(lambdas, betas_transition=betas_transition):
