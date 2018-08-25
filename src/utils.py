@@ -2,6 +2,15 @@ import time
 import numpy as np
 
 
+def generate_simplex_3dims(n_per_dim=20):
+    xlist = np.linspace(0.0, 1.0, n_per_dim)
+    ylist = np.linspace(0.0, 1.0, n_per_dim)
+    zlist = np.linspace(0.0, 1.0, n_per_dim)
+    return np.array([[x, y, z] for x in xlist for y in ylist for z in zlist
+                     if np.allclose(x+y+z, 1.0)])
+
+
+
 def compute_fixed_point(T, v, error_tol=1e-5, max_iter=50, verbose=1,
                         skip=10, eval_grid=None, *args,
                         **kwargs):
