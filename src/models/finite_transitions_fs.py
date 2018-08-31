@@ -30,10 +30,11 @@ transition probability gave to $x_t$ actually happening. If the probability of $
 
 import src.constants as const
 import numpy as np
-from scipy.stats import norm
 import scipy.integrate as integrate
 from typing import Callable
 from scipy.interpolate import LinearNDInterpolator
+from numba import cfunc
+from numba.decorators import njit, jit
 
 
 #TODO: vectorize over action (price). Hadamard + dot. Check black notebook
@@ -58,13 +59,18 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
     return transition_fs(new_state, action, old_state)*old_lambdas / denominator
 
 
+@jit('float64(float64, float64, float64)', nopython=True, nogil=True)
+def jittednormpdf(x, loc, scale):
+    return np.exp(-((x - loc)/scale)**2/2.0)/(np.sqrt(2.0*np.pi)) / scale
+
+
 def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     """
     Returns the probability of observing a given log demand
     Action is the price
     """
-    return np.array([norm.pdf(new_state, loc=(const.α + beta*np.log(action)),
-                              scale=const.σ_ɛ) for beta in const.betas_transition])
+    return np.array([jittednormpdf(new_state, loc=const.α + beta * np.log(action), scale=const.σ_ɛ)
+                     for beta in const.betas_transition])
 
 
 def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
@@ -74,7 +80,7 @@ def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     return np.dot(lambdas, betas_transition)
 
 
-def eOfV(wGuess, p_array, lambdas: np.ndarray) -> np.ndarray:
+def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     """
     Integrates wGuess * belief_f for each value of p. Integration over demand
 
@@ -93,7 +99,9 @@ def eOfV(wGuess, p_array, lambdas: np.ndarray) -> np.ndarray:
                           action=p_array[i], old_state='No worries')
 
         #wGuess takes all lambdas except last (because of the simplex)
-        integrand = lambda new_dmd: wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
+        def integrand(new_dmd):
+            return wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
+        #nb_integrand = cfunc("float64(float64)")(integrand)
 
         #The new state is defined in terms of logD
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)

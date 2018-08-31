@@ -1,5 +1,6 @@
 import numpy as np
 import src
+from scipy.stats import norm
 
 
 def test_update_lambdas():
@@ -19,4 +20,11 @@ def test_belief():
     assert isinstance(belief_at_x, float)
     assert np.isfinite(belief_at_x)
 
+
+def test_jitted_normpdf():
+    x = 0.3
+    loc, scale = 8.1, 1.5
+    jit_result = src.jittednormpdf(x, loc, scale)
+    scipy_result = norm.pdf(x, loc=loc, scale=scale)
+    assert np.allclose(jit_result, scipy_result)
 
