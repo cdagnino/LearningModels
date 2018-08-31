@@ -92,11 +92,12 @@ def eOfV(wGuess, p_array, lambdas: np.ndarray) -> np.ndarray:
                           lambda_weights=new_lambdas(new_dmd),
                           action=p_array[i], old_state='No worries')
 
-        #wGuess takes all lambdas except last
+        #wGuess takes all lambdas except last (because of the simplex)
         integrand = lambda new_dmd: wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
 
-        #TODO: check if these limits are for D, not for logD!!
-        integrated_values[i], error = integrate.quad(integrand, 0.001, 10)
+        #The new state is defined in terms of logD
+        logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
+        integrated_values[i], error = integrate.quad(integrand, logd_min, logd_max)
         if i % 30 == 0:
             print("error integración: ", error)
 

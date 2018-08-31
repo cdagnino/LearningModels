@@ -19,5 +19,4 @@ def test_belief():
     assert isinstance(belief_at_x, float)
     assert np.isfinite(belief_at_x)
 
-    print("new belief f tested")
 
