@@ -28,7 +28,7 @@ transition probability gave to $x_t$ actually happening. If the probability of $
 """
 
 
-from src.constants import *
+import src.constants as const
 import numpy as np
 from scipy.stats import norm
 import scipy.integrate as integrate
@@ -43,8 +43,6 @@ def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -
     transition_fs: list of transition probabilities
     """
     return np.dot(transition_fs(new_state, action, old_state), lambda_weights)
-
-
 
 
 def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.ndarray,
@@ -62,14 +60,14 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
 
 def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     """
-    Give the probability of observation a given log demand
+    Returns the probability of observing a given log demand
     Action is the price
     """
-    return np.array([norm.pdf(new_state, loc=(α + beta*np.log(action)),
-                              scale=σ_ɛ) for beta in betas_transition])
+    return np.array([norm.pdf(new_state, loc=(const.α + beta*np.log(action)),
+                              scale=const.σ_ɛ) for beta in const.betas_transition])
 
 
-def exp_b_from_lambdas(lambdas, betas_transition=betas_transition):
+def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     """
     Get E[β] from the lambdas
     """
@@ -145,7 +143,7 @@ def bellman_operator(wGuess, price_grid, lambda_simplex, period_return_f: Callab
         eOfV_p : np.ndarray = eOfV(wGuess, price_grid, lambdas=lambda_weights)
         assert isinstance(R_, np.ndarray)
         assert isinstance(eOfV_p, np.ndarray)
-        objective_vals = R_ + δ * eOfV_p
+        objective_vals = R_ + const.δ * eOfV_p
         p_argmax = np.argmax(objective_vals)
         pStar = price_grid[p_argmax]
         policy[iII] = pStar

@@ -1,7 +1,7 @@
 
 
 import src
-from src.constants import *
+import src.constants as const
 import numpy as np
 import time
 from typing import Callable
@@ -14,25 +14,26 @@ n_of_lambdas_per_dim = 3
 max_iters = 5
 error_tol = 1e-5
 
-def myopic_price(lambdas: np.ndarray, betas_transition=betas_transition):
+
+def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
     """
     Given a lambda point, spits out optimal myopic price
     """
     #Elasticity implied by lambdas
     elasticity = np.dot(lambdas, betas_transition) #-2.2
     assert elasticity < -1.0
-    return c / (1 + (1/elasticity))
+    return const.c / (1 + (1/elasticity))
 
 
 #TODO: get true expected value
-def period_profit(p, lambdas, betas_transition=betas_transition):
+def period_profit(p, lambdas, betas_transition=const.betas_transition):
     """
     Not the right expected profit (expected value doesn't make epsilon go away)
     but it should be close enough
     """
     E_β = src.exp_b_from_lambdas(lambdas, betas_transition)
-    logq = α + E_β*np.log(p)
-    return (p-c)*np.e**logq
+    logq = const.α + E_β*np.log(p)
+    return (p-const.c)*np.e**logq
 
 
 def v0(lambdas_except_last: np.ndarray) -> Callable:
