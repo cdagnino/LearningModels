@@ -59,18 +59,29 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
     return transition_fs(new_state, action, old_state)*old_lambdas / denominator
 
 
-@jit('float64(float64, float64, float64)', nopython=True, nogil=True)
+#@jit('float64(float64, float64, float64)', nopython=True, nogil=True)
+@njit()
 def jittednormpdf(x, loc, scale):
     return np.exp(-((x - loc)/scale)**2/2.0)/(np.sqrt(2.0*np.pi)) / scale
 
 
+
+
+#TODO Pass betas_transition, σ_ɛ and α in a nicer way
+betas_transition = const.betas_transition #np.array([-3.0, -2.5, -2.0])
+σ_ɛ = const.σ_ɛ #0.5
+α = const.α #1.0
+
+
+#@jit('float64[:](float64, float64, float64)')
+@njit()
 def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     """
     Returns the probability of observing a given log demand
     Action is the price
     """
-    return np.array([jittednormpdf(new_state, loc=const.α + beta * np.log(action), scale=const.σ_ɛ)
-                     for beta in const.betas_transition])
+    return jittednormpdf(new_state, loc=α + betas_transition * np.log(action), scale=σ_ɛ)
+
 
 
 def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
@@ -91,12 +102,12 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     for i in range(len(integrated_values)):
         def new_lambdas(new_dmd):
             return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
-                                  old_lambdas=lambdas, action=p_array[i], old_state='No worries')
+                                  old_lambdas=lambdas, action=p_array[i], old_state=2.5)
 
         def new_belief(new_dmd):
             return belief(new_dmd, transition_fs=dmd_transition_fs,
                           lambda_weights=new_lambdas(new_dmd),
-                          action=p_array[i], old_state='No worries')
+                          action=p_array[i], old_state=2.5)
 
         #wGuess takes all lambdas except last (because of the simplex)
         def integrand(new_dmd):
@@ -106,8 +117,8 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
         #The new state is defined in terms of logD
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
         integrated_values[i], error = integrate.quad(integrand, logd_min, logd_max)
-        if i % 30 == 0:
-            print("error integración: ", error)
+        if error > 1e-6:
+            print("Big integration error: ", error)
 
     return integrated_values
 

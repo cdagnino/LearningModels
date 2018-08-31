@@ -7,7 +7,7 @@ import time
 from typing import Callable
 start = time.time()
 
-
+#Iterates take about 0.3 minutes (the first one about 0.14)
 length_of_price_grid = 10
 min_price, max_price = 0.5, 1.5
 n_of_lambdas_per_dim = 3
