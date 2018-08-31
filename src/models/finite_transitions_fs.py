@@ -34,6 +34,7 @@ import scipy.integrate as integrate
 from typing import Callable
 from scipy.interpolate import LinearNDInterpolator
 from numba import cfunc
+import numba as nb
 from numba.decorators import njit, jit
 
 
@@ -46,6 +47,7 @@ def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -
     return np.dot(transition_fs(new_state, action, old_state), lambda_weights)
 
 
+#TODO: this can probably be jitted
 def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.ndarray,
                    action: float, old_state) -> np.ndarray:
     """
@@ -99,6 +101,9 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     """
     #TODO: vectorize over p
     integrated_values = np.empty(p_array.shape[0])
+
+    #TODO: jit wguess?
+
     for i in range(len(integrated_values)):
         def new_lambdas(new_dmd):
             return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
