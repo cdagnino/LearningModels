@@ -2,7 +2,7 @@
 #
 #
 
-using Interpolations
+using GridInterpolations
 using Distributions
 using QuadGK
 
@@ -14,19 +14,32 @@ delta = 0.9
 
 function generate_simplex_3dims(n_per_dim::Integer=20) 
 
-    xlist = linspace(0.0, 1.0, n_per_dim)
-    ylist = linspace(0.0, 1.0, n_per_dim)
-    zlist = linspace(0.0, 1.0, n_per_dim)
+    simplex = [[x, y, 1-x-y] for x in linspace(0,1,n_per_dim) for y in linspace(0,1,n_per_dim) if x+y <= 1.0]
 
-    simplex = Matrix{Float64}(0,3)
+    return hcat(simplex...)'
 
-    for x in xlist, y in ylist, z in zlist
-        if isapprox(x+y+z, 1)
-            simplex = vcat(simplex, [x, y, z]')
+end
+
+function interpV(simplex, V)
+
+    step = simplex[2,2]
+    grid = 0.0:step:1.0
+    size_simplex = length(grid)
+
+    augment_V = zeros(size_simplex, size_simplex)
+    k = 1
+    for i in 1:size_simplex
+        for j in 1:size_simplex
+            if j <= size_simplex+1-i
+                augment_V[i,j] = V[k]
+                k += 1
+            end
         end
     end
 
-    return simplex
+    interpolate_V(x) = interpolate(SimplexGrid(grid, grid), flipdim(augment_V,1), [x(1), 1-x(2)])
+
+    return interpolate_V
 
 end
 
@@ -104,7 +117,7 @@ function bellman_operator(Vguess, price_grid, lambda_simplex)
     end
 
     # Interpolate using Interpolations.jl
-    interp_T_V = LinearInterpolation(lambda_simplex, T_V)
+    interp_T_V = interpV(lambda_simplex, T_V)
 
     return interp_T_V, policy
 
