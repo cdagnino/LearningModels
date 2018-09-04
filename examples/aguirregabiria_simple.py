@@ -3,16 +3,28 @@
 import src
 import src.constants as const
 import numpy as np
-import time
+import time, datetime
 from typing import Callable
+import dill
+from numba.decorators import njit
 start = time.time()
 
+benchmark_values = True
 
-length_of_price_grid = 10
-min_price, max_price = 0.5, 1.5
-n_of_lambdas_per_dim = 3
-max_iters = 5
-error_tol = 1e-5
+#New benchmark: #0.02, 0.019, 0.019
+if benchmark_values:
+    length_of_price_grid = 10
+    min_price, max_price = 0.5, 1.5
+    n_of_lambdas_per_dim = 3
+    max_iters = 3
+    error_tol = 1e-5
+else: #Time per iteration? 0.5, 4, 3.6, 4.4
+    length_of_price_grid = 40
+    min_price, max_price = 0.5, 1.5
+    n_of_lambdas_per_dim = 15
+    max_iters = 4
+    error_tol = 1e-5
+
 
 
 def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
@@ -25,7 +37,6 @@ def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
     return const.c / (1 + (1/elasticity))
 
 
-#TODO: get true expected value
 def period_profit(p, lambdas, betas_transition=const.betas_transition):
     """
     Not the right expected profit (expected value doesn't make epsilon go away)
@@ -34,6 +45,15 @@ def period_profit(p, lambdas, betas_transition=const.betas_transition):
     E_β = src.exp_b_from_lambdas(lambdas, betas_transition)
     logq = const.α + E_β*np.log(p)
     return (p-const.c)*np.e**logq
+
+
+def exp_period_profit(p, lambdas, betas_transition=const.betas_transition):
+    #Not 100% sure of this middle part
+    #\int exp(β*log(p)) f(β) dβ
+    middle_exp_value = (np.exp(const.α) *
+                        np.exp(np.dot(lambdas, betas_transition*np.log(p))))
+
+    return (p-const.c)*middle_exp_value*np.exp(const.σ_ɛ**2 / 2)
 
 
 def v0(lambdas_except_last: np.ndarray) -> Callable:
@@ -59,23 +79,19 @@ if __name__ == "__main__":
                                                lambda_simplex=simplex3d,
                                                period_return_f=period_profit)
 
-    print("Error : ", error)
+    print("Final Error : ", error)
+    print("Done {0} iterations in {1} minutes".format(max_iters, (time.time() - start)/60))
 
+    now = datetime.datetime.now()
+    year, month, day = now.year, now.month, now.day
 
-if __name__ == "__main2__":
-    Tw, policy_t = src.bellman_operator(v0, price_grid, lambda_simplex=simplex3d)
-    print(Tw)
-    print("========")
-    print(policy_t)
+    d_ = {'valueF': v, 'policy': policy, 'error': error,
+          'length_of_price_grid': length_of_price_grid,
+          'n_of_lambdas_per_dim': n_of_lambdas_per_dim,
+          'min_price': min_price, 'max_price': max_price}
 
-    print("Done in ", (time.time() - start)/60,
-          " minutes. Lambda simplex had {0} dimensions".format(len(simplex3d)))
+    with open('../data/{0}-{1}-{2}vfi_dict.dill'.format(year, month, day),
+              'wb') as file:
+        dill.dump(d_, file)
 
-    print("========")
-    Tw, policy_t = src.bellman_operator(Tw, price_grid, lambda_simplex=simplex3d)
-    print(Tw)
-    print("========")
-    print(policy_t)
-
-    print("Done in ", (time.time() - start)/60,
-          " minutes. Lambda simplex had {0} dimensions".format(len(simplex3d)))
+    print("saved file: {0}-{1}-{2}vfi_dict.dill".format(year, month, day))

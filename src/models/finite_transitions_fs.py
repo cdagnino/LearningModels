@@ -30,13 +30,16 @@ transition probability gave to $x_t$ actually happening. If the probability of $
 
 import src.constants as const
 import numpy as np
-from scipy.stats import norm
 import scipy.integrate as integrate
 from typing import Callable
 from scipy.interpolate import LinearNDInterpolator
+from numba import cfunc
+import numba as nb
+from numba.decorators import njit, jit
 
 
 #TODO: vectorize over action (price). Hadamard + dot. Check black notebook
+@njit()
 def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -> float:
     """
     state: point in state space
@@ -45,6 +48,7 @@ def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -
     return np.dot(transition_fs(new_state, action, old_state), lambda_weights)
 
 
+@njit()
 def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.ndarray,
                    action: float, old_state) -> np.ndarray:
     """
@@ -54,19 +58,34 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
     Output:
     """
     denominator = (old_lambdas * transition_fs(new_state, action, old_state)).sum()
-    assert isinstance(denominator, float)
     return transition_fs(new_state, action, old_state)*old_lambdas / denominator
 
 
+#@jit('float64(float64, float64, float64)', nopython=True, nogil=True)
+@njit()
+def jittednormpdf(x, loc, scale):
+    return np.exp(-((x - loc)/scale)**2/2.0)/(np.sqrt(2.0*np.pi)) / scale
+
+
+
+
+#TODO Pass betas_transition, σ_ɛ and α in a nicer way
+betas_transition = const.betas_transition #np.array([-3.0, -2.5, -2.0])
+σ_ɛ = const.σ_ɛ #0.5
+α = const.α #1.0
+
+
+#@jit('float64[:](float64, float64, float64)')
+@njit()
 def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     """
     Returns the probability of observing a given log demand
     Action is the price
     """
-    return np.array([norm.pdf(new_state, loc=(const.α + beta*np.log(action)),
-                              scale=const.σ_ɛ) for beta in const.betas_transition])
+    return jittednormpdf(new_state, loc=α + betas_transition * np.log(action), scale=σ_ɛ)
 
 
+@njit()
 def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     """
     Get E[β] from the lambdas
@@ -74,32 +93,41 @@ def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     return np.dot(lambdas, betas_transition)
 
 
-def eOfV(wGuess, p_array, lambdas: np.ndarray) -> np.ndarray:
+def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     """
     Integrates wGuess * belief_f for each value of p. Integration over demand
 
     Sum of points on demand and weights, multiplied by V and the belief function
     """
-    #TODO: vectorize over p
+
     integrated_values = np.empty(p_array.shape[0])
+
+    #@jit('float64(float64[:])', nopython=True, nogil=True)
+    #def jittedwguess(lambdas):
+    #    return wGuess(lambdas)
+
+    #TODO: vectorize over p
     for i in range(len(integrated_values)):
+
         def new_lambdas(new_dmd):
             return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
-                                  old_lambdas=lambdas, action=p_array[i], old_state='No worries')
+                                  old_lambdas=lambdas, action=p_array[i], old_state=2.5)
 
         def new_belief(new_dmd):
             return belief(new_dmd, transition_fs=dmd_transition_fs,
                           lambda_weights=new_lambdas(new_dmd),
-                          action=p_array[i], old_state='No worries')
+                          action=p_array[i], old_state=2.5)
 
         #wGuess takes all lambdas except last (because of the simplex)
-        integrand = lambda new_dmd: wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
+        def integrand(new_dmd):
+            return wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
+        #nb_integrand = cfunc("float64(float64)")(integrand)
 
         #The new state is defined in terms of logD
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
         integrated_values[i], error = integrate.quad(integrand, logd_min, logd_max)
-        if i % 30 == 0:
-            print("error integración: ", error)
+        if error > 1e-5:
+            print("Big integration error: ", error)
 
     return integrated_values
 
@@ -137,7 +165,8 @@ def bellman_operator(wGuess, price_grid, lambda_simplex, period_return_f: Callab
     # 3. Find optimal p on that objective
     # 4. write optimal p and value function on that point in the grid
     for iII, (λ1, λ2, λ3) in enumerate(lambda_simplex):
-        print("doing {0} of {1}".format(iII, len(lambda_simplex)))
+        if iII%10==0:
+            print("doing {0} of {1}".format(iII, len(lambda_simplex)))
         lambda_weights = np.array([λ1, λ2, λ3])
 
         R_ : np.ndarray = period_return_f(price_grid, lambdas=lambda_weights)
