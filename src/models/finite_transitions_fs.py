@@ -39,6 +39,7 @@ from numba.decorators import njit, jit
 
 
 #TODO: vectorize over action (price). Hadamard + dot. Check black notebook
+@njit()
 def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -> float:
     """
     state: point in state space
@@ -47,7 +48,7 @@ def belief(new_state, transition_fs, lambda_weights, action: float, old_state) -
     return np.dot(transition_fs(new_state, action, old_state), lambda_weights)
 
 
-#TODO: this can probably be jitted
+@njit()
 def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.ndarray,
                    action: float, old_state) -> np.ndarray:
     """
@@ -57,7 +58,6 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
     Output:
     """
     denominator = (old_lambdas * transition_fs(new_state, action, old_state)).sum()
-    assert isinstance(denominator, float)
     return transition_fs(new_state, action, old_state)*old_lambdas / denominator
 
 
@@ -85,7 +85,7 @@ def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     return jittednormpdf(new_state, loc=α + betas_transition * np.log(action), scale=σ_ɛ)
 
 
-
+@njit()
 def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     """
     Get E[β] from the lambdas
@@ -99,12 +99,16 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
 
     Sum of points on demand and weights, multiplied by V and the belief function
     """
-    #TODO: vectorize over p
+
     integrated_values = np.empty(p_array.shape[0])
 
-    #TODO: jit wguess?
+    #@jit('float64(float64[:])', nopython=True, nogil=True)
+    #def jittedwguess(lambdas):
+    #    return wGuess(lambdas)
 
+    #TODO: vectorize over p
     for i in range(len(integrated_values)):
+
         def new_lambdas(new_dmd):
             return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
                                   old_lambdas=lambdas, action=p_array[i], old_state=2.5)
@@ -122,7 +126,7 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
         #The new state is defined in terms of logD
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
         integrated_values[i], error = integrate.quad(integrand, logd_min, logd_max)
-        if error > 1e-6:
+        if error > 1e-5:
             print("Big integration error: ", error)
 
     return integrated_values
@@ -161,7 +165,8 @@ def bellman_operator(wGuess, price_grid, lambda_simplex, period_return_f: Callab
     # 3. Find optimal p on that objective
     # 4. write optimal p and value function on that point in the grid
     for iII, (λ1, λ2, λ3) in enumerate(lambda_simplex):
-        print("doing {0} of {1}".format(iII, len(lambda_simplex)))
+        if iII%10==0:
+            print("doing {0} of {1}".format(iII, len(lambda_simplex)))
         lambda_weights = np.array([λ1, λ2, λ3])
 
         R_ : np.ndarray = period_return_f(price_grid, lambdas=lambda_weights)
