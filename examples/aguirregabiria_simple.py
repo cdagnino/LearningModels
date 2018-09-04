@@ -18,13 +18,22 @@ if benchmark_values:
     n_of_lambdas_per_dim = 3
     max_iters = 3
     error_tol = 1e-5
-else: #Time per iteration? 0.5, 4, 3.6, 4.4
+else: #Time per iteration: 0.5, 4, 3.6, 4.4
     length_of_price_grid = 40
     min_price, max_price = 0.5, 1.5
     n_of_lambdas_per_dim = 15
     max_iters = 4
     error_tol = 1e-5
 
+
+def period_profit(p: np.ndarray, lambdas: np.ndarray, betas_transition=const.betas_transition):
+    """
+    Correct expected period return profit. See ReadMe for derivation
+    """
+    constant_part = (p-const.c) * np.e ** const.α * np.e ** ((const.σ_ɛ ** 2) / 2)
+    summation = np.dot(np.e**(betas_transition*np.log(p[:, np.newaxis])), lambdas)
+
+    return constant_part*summation
 
 
 def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
@@ -37,25 +46,6 @@ def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
     return const.c / (1 + (1/elasticity))
 
 
-def period_profit(p, lambdas, betas_transition=const.betas_transition):
-    """
-    Not the right expected profit (expected value doesn't make epsilon go away)
-    but it should be close enough
-    """
-    E_β = src.exp_b_from_lambdas(lambdas, betas_transition)
-    logq = const.α + E_β*np.log(p)
-    return (p-const.c)*np.e**logq
-
-
-def exp_period_profit(p, lambdas, betas_transition=const.betas_transition):
-    #Not 100% sure of this middle part
-    #\int exp(β*log(p)) f(β) dβ
-    middle_exp_value = (np.exp(const.α) *
-                        np.exp(np.dot(lambdas, betas_transition*np.log(p))))
-
-    return (p-const.c)*middle_exp_value*np.exp(const.σ_ɛ**2 / 2)
-
-
 def v0(lambdas_except_last: np.ndarray) -> Callable:
     """
 
@@ -63,8 +53,11 @@ def v0(lambdas_except_last: np.ndarray) -> Callable:
     :return:
     """
     full_lambdas = np.array(list(lambdas_except_last) + [1 - lambdas_except_last.sum()])
-    optimal_price = myopic_price(full_lambdas)
-    return period_profit(optimal_price, full_lambdas)
+    optimal_price: float = myopic_price(full_lambdas)
+
+    #Dirty trick because period_profit takes a vector price, not scalar
+    prices = np.array([optimal_price, optimal_price+0.01])
+    return period_profit(prices, full_lambdas)[0]
 
 
 price_grid = np.linspace(min_price, max_price, num=length_of_price_grid)

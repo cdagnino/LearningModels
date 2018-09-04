@@ -12,12 +12,12 @@ def test_update_lambdas():
 
 def test_belief():
     belief_at_x = src.belief(3.1, src.dmd_transition_fs,
-                         [0., 0., 1.], 3.0, old_state=2.5)
+                             np.array([0., 0., 1.]), 3.0, old_state=2.5)
     assert isinstance(belief_at_x, float)
     assert np.isfinite(belief_at_x)
 
     belief_at_x = src.belief(2.1, src.dmd_transition_fs,
-                         [0.3, 0.4, 0.3], 2.8, old_state=2.5)
+                             np.array([0.3, 0.4, 0.3]), 2.8, old_state=2.5)
     assert isinstance(belief_at_x, float)
     assert np.isfinite(belief_at_x)
 
@@ -28,7 +28,6 @@ def test_jitted_normpdf():
     jit_result = src.jittednormpdf(x, loc, scale)
     scipy_result = norm.pdf(x, loc=loc, scale=scale)
     assert np.allclose(jit_result, scipy_result)
-
 
 
 def test_dmd_transition_fs():
@@ -45,3 +44,4 @@ def test_dmd_transition_fs():
     old_values = old_dmd_transition_fs(new_state, action, old_state)
     new_values = src.dmd_transition_fs(new_state, action, old_state)
     assert np.allclose(old_values, new_values)
+
