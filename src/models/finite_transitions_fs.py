@@ -114,9 +114,18 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
             return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
                                   old_lambdas=lambdas, action=p_array[i], old_state=2.5)
 
-        def new_belief(new_dmd):
+        def new_belief_old_version(new_dmd):
             return belief(new_dmd, transition_fs=dmd_transition_fs,
                           lambda_weights=new_lambdas(new_dmd),
+                          action=p_array[i], old_state=2.5)
+
+        def new_belief(new_dmd):
+            """
+            Use the old lambdas, the belief shouldn't
+            incorporate the updated lambdas
+            """
+            return belief(new_dmd, transition_fs=dmd_transition_fs,
+                          lambda_weights=lambdas,
                           action=p_array[i], old_state=2.5)
 
         #wGuess takes all lambdas except last (because of the simplex)
