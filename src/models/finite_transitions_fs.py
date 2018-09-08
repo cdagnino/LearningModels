@@ -53,6 +53,7 @@ def update_lambdas(new_state: float, transition_fs: Callable, old_lambdas: np.nd
                    action: float, old_state) -> np.ndarray:
     """
     Update the beliefs for new lambdas given a new state.
+    new_state: in the demand model, correspondes to log(q)
     Transition_fs are fixed and exogenous. k by 1
 
     Output:
