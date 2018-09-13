@@ -109,3 +109,6 @@ venv.bak/
 data/
 
 \.DS_Store
+2018-9-7vfi_dict.dill
+2018-9-8vfi_dict_50_iterations.dill
+2018-9-8vfi_dict_corrected.dill
