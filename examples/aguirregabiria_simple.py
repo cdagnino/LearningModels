@@ -9,20 +9,20 @@ import dill
 from numba.decorators import njit
 start = time.time()
 
-benchmark_values = True
+benchmark_values = False
 
 #New benchmark: #0.02, 0.019, 0.019
 if benchmark_values:
     length_of_price_grid = 10
     min_price, max_price = 0.5, 1.5
     n_of_lambdas_per_dim = 3
-    max_iters = 50
+    max_iters = 20
     error_tol = 1e-5
 else: #Time per iteration: 0.5, 4, 3.6, 4.4
-    length_of_price_grid = 40
+    length_of_price_grid = 15
     min_price, max_price = 0.5, 1.5
-    n_of_lambdas_per_dim = 15
-    max_iters = 4
+    n_of_lambdas_per_dim = 10
+    max_iters = 40
     error_tol = 1e-5
 
 

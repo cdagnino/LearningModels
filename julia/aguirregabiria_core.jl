@@ -6,7 +6,7 @@ using GridInterpolations
 using Distributions
 using QuadGK
 
-betas_transition = [-3.0, -2.5, -2.0]
+betas_transition = [-4, -1.7, -1.2]#[-3.0, -2.5, -2.0]
 sigma_eps = 0.5
 alpha = 1.0
 c = 0.5
@@ -60,7 +60,7 @@ end
 
 function period_return(price_grid, lambdas)
     constant_part = (price_grid - c) * exp(alpha + (sigma_eps^2)/2)
-    summation     = exp.(log.(price_grid)*betas_transition' * test_lambdas)
+    summation     = exp.(log.(price_grid)*betas_transition') * lambdas
                     
     #constant_part = (p-const.c) * np.e ** const.α * np.e ** ((const.σ_ɛ ** 2) / 2)
     #summation = np.dot(np.e**(betas_transition*np.log(p[:, np.newaxis])), lambdas)
@@ -98,7 +98,7 @@ function E0fV(Vguess, price_grid, lambda_weights)
         integrand(x) = Vguess(new_lambdas(x))*new_belief(x)
 
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
-        integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=250)
+        integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=500)
         
         error += error_tmp
 
@@ -112,8 +112,8 @@ end
 
 function bellman_operator(Vguess, price_grid, lambda_simplex)
 
-    policy = similar(lambda_simplex)
-    T_V = similar(lambda_simplex)
+    policy = zeros(size(lambda_simplex,1))
+    T_V    = zeros(size(lambda_simplex,1))
 
     # 1. Go over grid of state space
     # 2. Write objective (present return + delta*eOfV)
@@ -143,7 +143,7 @@ function bellman_operator(Vguess, price_grid, lambda_simplex)
 
 end
 
-function compute_fixed_point(V, price_grid, lambda_simplex, error_tol=1e-5, max_iter=50, verbose=1, skip=10)
+function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_iter=50, verbose=1, skip=10)
 
     iterate = 1
     error = error_tol + 1
