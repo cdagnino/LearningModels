@@ -94,6 +94,14 @@ def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
     return np.dot(lambdas, betas_transition)
 
 
+def rescale_demand(log_dmd, beta_l, price):
+    """
+    Rescales demand to use Gauss-Hermite collocation points
+    """
+    mu = const.α + beta_l*np.log(price)
+    return const.sqrt2*const.σ_ɛ * log_dmd + mu
+
+
 def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     """
     Integrates wGuess * belief_f for each value of p. Integration over demand
@@ -101,45 +109,31 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     Sum of points on demand and weights, multiplied by V and the belief function
     """
 
-    integrated_values = np.empty(p_array.shape[0])
+    def new_lambdas(new_dmd, price):
+        return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
+                              old_lambdas=lambdas, action=price, old_state=2.5)
+
+    integration_over_p = np.empty(p_array.shape[0])
 
     #@jit('float64(float64[:])', nopython=True, nogil=True)
     #def jittedwguess(lambdas):
     #    return wGuess(lambdas)
 
     #TODO: vectorize over p
-    for i in range(len(integrated_values)):
+    for i, price in enumerate(p_array):
+        sum_over_each_lambda = 0.
+        for l, beta_l in enumerate(const.betas_transition):
+            for k, hermite_point in enumerate(const.hermite_xs):
+                rescaled_demand = rescale_demand(hermite_point, beta_l, price)
+                new_lambdas_value = new_lambdas(rescaled_demand, price)
 
-        def new_lambdas(new_dmd):
-            return update_lambdas(new_dmd, transition_fs=dmd_transition_fs,
-                                  old_lambdas=lambdas, action=p_array[i], old_state=2.5)
+                # wGuess takes all lambdas except last (because of the simplex)
+                v_value = wGuess(new_lambdas_value[:-1])
+                sum_over_each_lambda += v_value * const.hermite_ws[k] * lambdas[l]
 
-        def new_belief_old_version(new_dmd):
-            return belief(new_dmd, transition_fs=dmd_transition_fs,
-                          lambda_weights=new_lambdas(new_dmd),
-                          action=p_array[i], old_state=2.5)
+        integration_over_p[i] = sum_over_each_lambda
 
-        def new_belief(new_dmd):
-            """
-            Use the old lambdas, the belief shouldn't
-            incorporate the updated lambdas
-            """
-            return belief(new_dmd, transition_fs=dmd_transition_fs,
-                          lambda_weights=lambdas,
-                          action=p_array[i], old_state=2.5)
-
-        #wGuess takes all lambdas except last (because of the simplex)
-        def integrand(new_dmd):
-            return wGuess(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
-        #nb_integrand = cfunc("float64(float64)")(integrand)
-
-        #The new state is defined in terms of logD
-        logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
-        integrated_values[i], error = integrate.quad(integrand, logd_min, logd_max)
-        if error > 1e-5:
-            print("Big integration error: ", error)
-
-    return integrated_values
+    return np.pi ** (-0.5) * integration_over_p
 
 
 def interpolate_wguess(simplex_points,
