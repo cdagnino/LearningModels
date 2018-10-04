@@ -81,7 +81,7 @@ betas_transition = const.betas_transition #np.array([-3.0, -2.5, -2.0])
 def dmd_transition_fs(new_state, action: float, old_state) -> np.ndarray:
     """
     Returns the probability of observing a given log demand
-    Action is the price
+    Action is the price. level, NOT log
     """
     return jittednormpdf(new_state, loc=α + betas_transition * np.log(action), scale=σ_ɛ)
 
@@ -97,6 +97,8 @@ def exp_b_from_lambdas(lambdas, betas_transition=const.betas_transition):
 def rescale_demand(log_dmd, beta_l, price):
     """
     Rescales demand to use Gauss-Hermite collocation points
+
+    price: level price, NOT log
     """
     mu = const.α + beta_l*np.log(price)
     return const.sqrt2*const.σ_ɛ * log_dmd + mu
@@ -107,6 +109,8 @@ def eOfV(wGuess: Callable, p_array, lambdas: np.ndarray) -> np.ndarray:
     Integrates wGuess * belief_f for each value of p. Integration over demand
 
     Sum of points on demand and weights, multiplied by V and the belief function
+
+    p_array: level prices, NOT log
     """
 
     def new_lambdas(new_dmd, price):
