@@ -1,5 +1,6 @@
 import time
 import numpy as np
+from src import const
 
 
 def generate_simplex_3dims(n_per_dim=20):
@@ -70,3 +71,13 @@ def compute_fixed_point(T, v, error_tol=1e-5, max_iter=50, verbose=1,
         except TypeError:
             v = new_v
     return v, policy, error
+
+
+def draw_true_log_dmd(price, β, σϵ):
+    """
+    Draws from true demand data generating process
+
+    price: level price, NOT log
+    σϵ: standard deviation of the error/noise
+    """
+    return np.random.normal(loc=const.α + β * np.log(price), scale=σϵ)
