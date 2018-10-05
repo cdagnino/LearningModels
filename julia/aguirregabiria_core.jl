@@ -98,7 +98,7 @@ function E0fV(Vguess, price_grid, lambda_weights)
         integrand(x) = Vguess(new_lambdas(x))*new_belief(x)
 
         logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
-        integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=500)
+        integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=2000)
         
         error += error_tmp
 
