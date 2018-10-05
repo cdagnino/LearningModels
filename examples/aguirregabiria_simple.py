@@ -19,16 +19,18 @@ if benchmark_values:
     max_iters = 20
     error_tol = 1e-5
 else: #Time per iteration: 0.5, 4, 3.6, 4.4
-    length_of_price_grid = 15
-    min_price, max_price = 0.5, 1.5
-    n_of_lambdas_per_dim = 10
-    max_iters = 40
+    length_of_price_grid = 30
+    min_price, max_price = 0.5, 6
+    n_of_lambdas_per_dim = 15
+    max_iters = 60
     error_tol = 1e-5
 
 
 def period_profit(p: np.ndarray, lambdas: np.ndarray, betas_transition=const.betas_transition):
     """
     Correct expected period return profit. See ReadMe for derivation
+
+    p: level prices, NOT log
     """
     constant_part = (p-const.c) * np.e ** const.α * np.e ** ((const.σ_ɛ ** 2) / 2)
     summation = np.dot(np.e**(betas_transition*np.log(p[:, np.newaxis])), lambdas)

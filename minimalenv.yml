@@ -1,0 +1,22 @@
+name: minimalenv
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7.0
+  - ipykernel
+  - ipython
+  - jupyter
+  - jupyter_client
+  - jupyter_console
+  - jupyter_core
+  - matplotlib
+  - pandas
+  - anaconda
+  - blas
+  - dill
+  - nb_conda_kernels
+  - numba
+  - numpy
+  - scipy
+  - sympy

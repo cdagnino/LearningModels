@@ -2,6 +2,8 @@ import numpy as np
 import src
 from src import const
 from scipy.stats import norm
+from scipy import integrate
+from typing import Callable
 
 
 def test_update_lambdas():
@@ -44,4 +46,80 @@ def test_dmd_transition_fs():
     old_values = old_dmd_transition_fs(new_state, action, old_state)
     new_values = src.dmd_transition_fs(new_state, action, old_state)
     assert np.allclose(old_values, new_values)
+
+
+def test_eofV():
+    """
+    Tests the integration of V over the possible x' values
+    Compares it to a simple trapezoidal rule
+    """
+
+    def period_profit(p: np.ndarray, lambdas: np.ndarray, betas_transition=const.betas_transition):
+        """
+        Correct expected period return profit. See ReadMe for derivation
+        """
+        constant_part = (p - const.c) * np.e ** const.α * np.e ** ((const.σ_ɛ ** 2) / 2)
+        summation = np.dot(np.e ** (betas_transition * np.log(p[:, np.newaxis])), lambdas)
+
+        return constant_part * summation
+
+    def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
+        """
+        Given a lambda point, spits out optimal myopic price
+        """
+        # Elasticity implied by lambdas
+        elasticity = np.dot(lambdas, betas_transition)  # -2.2
+        assert elasticity < -1.0
+        return const.c / (1 + (1 / elasticity))
+
+    def v0(lambdas_except_last: np.ndarray) -> Callable:
+        """
+
+        :param lambdas_except_last: D-1, then augmented
+        :return:
+        """
+        full_lambdas = np.array(list(lambdas_except_last) + [1 - lambdas_except_last.sum()])
+        optimal_price: float = myopic_price(full_lambdas)
+
+        # Dirty trick because period_profit takes a vector price, not scalar
+        prices = np.array([optimal_price, optimal_price + 0.01])
+        return period_profit(prices, full_lambdas)[0]
+
+
+    #Setup
+    length_of_price_grid = 10
+    min_price, max_price = 0.5, 1.5
+    p_array = np.linspace(min_price, max_price, num=length_of_price_grid)
+    lambda_point = np.array([0.55555556, 0.11111111, 0.33333333])
+
+    # Expected on trapezoid rule
+    expected_results = np.empty_like(p_array)
+    for i, price in enumerate(p_array):
+        def new_lambdas(new_dmd):
+            return src.update_lambdas(new_dmd, transition_fs=src.dmd_transition_fs,
+                                      old_lambdas=lambda_point, action=price,
+                                      old_state=2.5)
+
+        def new_belief(new_dmd):
+            """
+            Don't update lambdas! Use the ones from the current period
+            """
+            return src.belief(new_dmd, transition_fs=src.dmd_transition_fs,
+                              lambda_weights=lambda_point,
+                              action=price, old_state=2.5)
+
+        def integrand(new_dmd):
+            return v0(new_lambdas(new_dmd)[:-1]) * new_belief(new_dmd)
+
+        yvals = []
+        xvals = np.linspace(-6, 5, num=20)
+        for x in xvals:
+            yvals.append(integrand(x))
+        expected_results[i] = integrate.trapz(yvals, xvals)
+
+
+    #Expected gauss-hermite
+    ghermite_result = src.eOfV(v0, p_array, lambda_point)
+
+    assert np.allclose(ghermite_result, expected_results, rtol=0.05)
 
