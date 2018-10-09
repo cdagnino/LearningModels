@@ -97,7 +97,7 @@ function E0fV(Vguess, price_grid, lambda_weights)
         #Vguess takes all lambdas except last (because of the simplex)
         integrand(x) = Vguess(new_lambdas(x))*new_belief(x)
 
-        logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
+        logd_min, logd_max = -6, 5 #D = (0.01, 10)
         integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=2000)
         
         error += error_tmp
@@ -143,13 +143,16 @@ function bellman_operator(Vguess, price_grid, lambda_simplex)
 
 end
 
-function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_iter=50, verbose=1, skip=10)
+function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_iter=50, verbose=true, skip=10)
 
     iterate = 1
     error = error_tol + 1
 
-    while iterate < max_iter && error > error_tol
-        if verbose & mod(iterate-1, skip) == 0
+    policy = similar(price_grid)
+    error  = Inf
+
+    while iterate <= max_iter && error > error_tol
+        if verbose && (mod(iterate, skip) == 0)
             tic()
         end
 
@@ -163,7 +166,7 @@ function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_
 
         V = new_V
 
-        if verbose & mod(iterate-1, skip) == 0
+        if verbose && (mod(iterate, skip) == 0)
             println(@sprintf("Computed iterate %d with error %.4f", iterate, error))
             print(" !-- ")
             toc()
