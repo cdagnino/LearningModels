@@ -30,12 +30,9 @@ transition probability gave to $x_t$ actually happening. If the probability of $
 
 import src.constants as const
 import numpy as np
-import scipy.integrate as integrate
 from typing import Callable
 from scipy.interpolate import LinearNDInterpolator
-from numba import cfunc
-import numba as nb
-from numba.decorators import njit, jit
+from numba.decorators import njit
 
 
 #TODO: vectorize over action (price). Hadamard + dot. Check black notebook
@@ -71,7 +68,7 @@ def jittednormpdf(x, loc, scale):
 
 
 #TODO Pass betas_transition, σ_ɛ and α in a nicer way
-betas_transition = const.betas_transition #np.array([-3.0, -2.5, -2.0])
+betas_transition = const.betas_transition
 σ_ɛ = const.σ_ɛ #0.5
 α = const.α #1.0
 
@@ -163,8 +160,6 @@ def bellman_operator(wGuess, price_grid, lambda_simplex, period_return_f: Callab
     :return: interpolated_tw, policy
     """
 
-    # policy = np.empty_like(wGuess)
-    # Tw = np.empty_like(wGuess)
     policy = np.empty(lambda_simplex.shape[0])
     Tw = np.empty(lambda_simplex.shape[0])
 

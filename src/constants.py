@@ -12,6 +12,7 @@ betas_transition = np.array([-4, -1.7, -1.2])  # [-4, -1.7, -1.2]  [-3.0, -2.5, 
 α = 1.0
 c = 0.5
 δ = 0.9
+#nodes, weights = np.polynomial.hermite.hermgauss(7)
 
 hermite_xs = np.array([-2.6519613568352334924470820065166161144,
                        -1.6735516287674714450318013983035948191,
