@@ -2,7 +2,6 @@
 #
 #
 
-using GridInterpolations
 using Distributions
 using QuadGK
 
@@ -19,6 +18,10 @@ function generate_simplex_3dims(n_per_dim::Integer=20)
     return hcat(simplex...)'
 
 end
+
+#= 
+# OLD interpV() method
+using GridInterpolations
 
 function interpV(simplex, V)
 
@@ -42,8 +45,39 @@ function interpV(simplex, V)
     return interpolate_V
 
 end
+=#
 
-#println(generate_simplex_3dims(5))
+function tripolate(V, x, y)
+    # Triangular (linear) interpolation:
+    # 0<=|x|<=1, 0<=|y|<=1 and N parition points
+    # of [0,1] for x, y
+    N = size(V, 1)-1
+    xf = Int(floor(N*x) - floor(x))
+    yf = Int(floor(N*y) - floor(y))
+    x_ = (N*x - xf)
+    y_ = (N*y - yf)
+    if xf + yf <= 1
+        return V[xf+2,yf+1]*x_ + V[xf+1,yf+2]*y_ + V[xf+1,yf+1]*(1-x_-y_)
+    else
+        return V[xf+2,yf+1]*(1-x_) + V[xf+1,yf+2]*(1-y_) - V[xf+1,yf+1]*(1-x_-y_)
+    end 
+end
+
+function interpV(simplex, V)
+	N_simplex = Int((sqrt(8*size(lambdas, 1)+1)-1)/2)
+	augment_V = zeros(N_simplex, N_simplex)
+    k = 1
+    for i in 1:N_simplex
+        for j in 1:(N_simplex+1-i)
+            augment_V[i,j] = V[k]
+            k += 1
+        end
+    end
+
+	interpolate_V(x) = tripolate(augment_V, x[1], x[2])
+
+	return interpolate_V
+end
 
 function dmd_transition_fs(new_state, action, old_state)
     return [pdf(Normal(alpha + beta*log.(action), sigma_eps), new_state) for beta in betas_transition]
@@ -97,7 +131,7 @@ function E0fV(Vguess, price_grid, lambda_weights)
         #Vguess takes all lambdas except last (because of the simplex)
         integrand(x) = Vguess(new_lambdas(x))*new_belief(x)
 
-        logd_min, logd_max = -6, 2.3 #D = (0.01, 10)
+        logd_min, logd_max = -6, 5 #D = (0.01, 10)
         integrated_values[i], error_tmp = quadgk(integrand, logd_min, logd_max, maxevals=2000)
         
         error += error_tmp
@@ -143,13 +177,16 @@ function bellman_operator(Vguess, price_grid, lambda_simplex)
 
 end
 
-function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_iter=50, verbose=1, skip=10)
+function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_iter=50, verbose=true, skip=10)
 
     iterate = 1
     error = error_tol + 1
 
-    while iterate < max_iter && error > error_tol
-        if verbose & mod(iterate-1, skip) == 0
+    policy = similar(price_grid)
+    error  = Inf
+
+    while iterate <= max_iter && error > error_tol
+        if verbose && (mod(iterate, skip) == 0)
             tic()
         end
 
@@ -163,7 +200,7 @@ function compute_fixed_point(V, price_grid, lambda_simplex; error_tol=1e-5, max_
 
         V = new_V
 
-        if verbose & mod(iterate-1, skip) == 0
+        if verbose && (mod(iterate, skip) == 0)
             println(@sprintf("Computed iterate %d with error %.4f", iterate, error))
             print(" !-- ")
             toc()
