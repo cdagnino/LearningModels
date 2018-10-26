@@ -83,11 +83,13 @@ def compute_fixed_point(T, v, error_tol=1e-5, max_iter=50, verbose=1,
     return v, policy, error
 
 
-def draw_true_log_dmd(price, β, σϵ):
+def draw_true_log_dmd(price, β, dmd_shock):
     """
     Draws from true demand data generating process
 
     price: level price, NOT log
     σϵ: standard deviation of the error/noise
     """
-    return np.random.normal(loc=const.α + β * np.log(price), scale=σϵ)
+    return const.α + β * np.log(price) + dmd_shock
+
+

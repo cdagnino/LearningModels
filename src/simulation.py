@@ -1,24 +1,33 @@
 import src
 import numpy as np
 import pandas as pd
+from numba import njit
 
 
-def simulate_one_firm(valueF, policyF, maxt, lambda0=np.array([0.4, 0.4, 0.2]),
-            true_beta=src.betas_transition[2],
-            dmd_σϵ=src.const.σ_ɛ):
+def generate_dmd_shocks(n: int, t: int, dmd_σϵ=src.const.σ_ɛ)\
+                       -> np.ndarray:
+    return np.random.normal(loc=0, scale=dmd_σϵ, size=(n, t))
+
+
+def simulate_one_firm(valueF, policyF, dmd_shocks, prior_shock,
+                      x, θ, true_beta=src.betas_transition[2]):
     """
-    Simulates the action of one firm when facing a random demand
-
     :param valueF: interpolated value function
     :param policyF: interpolated policy function
     :param maxt: maximum number of time periods
-    :param lambda0: starting prior
-    :param true_beta: true elasticity of demand
-    :param dmd_σϵ: standard deviation of demand noise
-    :return: pd.Dataframe with level prices, log_dmd, value function and the lambdas
+    :param dmd_shocks: fixed demand shocks (needed for GMM convergence)
+    :param prior_shock: shock that determines relationship between theta and lambda
+    :param x: characteristics of firm
+    :param θ: structural parameters
+    :param true_beta:
+    :param dmd_σϵ:
+    :return:
     """
-    current_lambdas = lambda0
-    d = {}
+
+    maxt = len(dmd_shocks)
+    current_lambdas = src.from_theta_to_lambda0(x, θ, prior_shock)
+
+    d = dict()
     d['level_prices'] = []
     d['log_dmd'] = []
     d['valueF'] = []
@@ -39,7 +48,7 @@ def simulate_one_firm(valueF, policyF, maxt, lambda0=np.array([0.4, 0.4, 0.2]),
         d['level_prices'].append(level_price[0])
 
         # 1. Demand happens
-        log_dmd = src.draw_true_log_dmd(level_price, true_beta, dmd_σϵ)
+        log_dmd = src.draw_true_log_dmd(level_price, true_beta, dmd_shocks[t])
         d['log_dmd'].append(log_dmd[0])
 
         # 2. lambda updates: log_dmd: Yes, level_price: Yes
@@ -51,6 +60,7 @@ def simulate_one_firm(valueF, policyF, maxt, lambda0=np.array([0.4, 0.4, 0.2]),
     return pd.DataFrame(d)
 
 
+# TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
 def generate_pricing_decisions(policyF, lambda0: np.ndarray, demand_obs: np.ndarray) -> np.ndarray:
     """
     Generates a vector of pricing for one firm based on the policy function
