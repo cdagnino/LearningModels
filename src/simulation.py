@@ -60,23 +60,28 @@ def simulate_one_firm(valueF, policyF, dmd_shocks, prior_shock,
     return pd.DataFrame(d)
 
 
-# TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
-def generate_pricing_decisions(policyF, lambda0: np.ndarray, demand_obs: np.ndarray) -> np.ndarray:
+
+def simulate_all_firms(nfirms, valueF, policyF, xs, θ, dmd_shocks, prior_shocks, **kwargs):
     """
-    Generates a vector of pricing for one firm based on the policy function
-    (could be vectorized later!)
+    Simulates data for all firms
+
+    :param nfirms:
+    :param valueF:
+    :param policyF:
+    :param xs:
+    :param θ: true parameters that generate lambda0 and rest of data
+    :param dmd_shocks:
+    :param prior_shocks:
+    :param kwargs:
+    :return:
     """
-    current_lambdas = lambda0
-    level_price_decisions = np.empty_like(demand_obs)
-    for t, log_dmd in enumerate(demand_obs):
-        level_price = policyF(current_lambdas[:2])  # Check: Is this correctly defined with the first two elements?
-        level_price_decisions[t] = level_price
+    dfs = []
+    for firm_i in range(nfirms):
+        df = src.simulate_one_firm(valueF, policyF,
+                                   dmd_shocks=dmd_shocks[firm_i, :],
+                                   prior_shock=prior_shocks[firm_i],
+                                   x=xs[firm_i], θ=θ, **kwargs)
+        df['firm'] = firm_i
+        dfs.append(df)
 
-        # lambda updates: log_dmd: Yes, level_price: Yes
-        new_lambdas = src.update_lambdas(log_dmd, src.dmd_transition_fs, current_lambdas,
-                                         action=level_price, old_state=1.2)
-
-        current_lambdas = new_lambdas
-
-    return level_price_decisions
-
+    return pd.concat(dfs, axis=0)
