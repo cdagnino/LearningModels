@@ -19,8 +19,8 @@ function generate_simplex_3dims(n_per_dim::Integer=20)
 
 end
 
-#= 
-# OLD interpV() method
+
+#= OLD interpV() method
 using GridInterpolations
 
 function interpV(simplex, V)
@@ -51,15 +51,19 @@ function tripolate(V, x, y)
     # Triangular (linear) interpolation:
     # 0<=|x|<=1, 0<=|y|<=1 and N parition points
     # of [0,1] for x, y
-    N = size(V, 1)-1
+    N  = size(V, 1)-1
     xf = Int(floor(N*x) - floor(x))
     yf = Int(floor(N*y) - floor(y))
     x_ = (N*x - xf)
     y_ = (N*y - yf)
+    if min(xf, yf) == 0 && max(xf, yf) <= 1
+        x_ = 1-x_
+        y_ = 1-y_
+    end
     if xf + yf <= 1
-        return V[xf+2,yf+1]*x_ + V[xf+1,yf+2]*y_ + V[xf+1,yf+1]*(1-x_-y_)
-    else
         return V[xf+2,yf+1]*(1-x_) + V[xf+1,yf+2]*(1-y_) - V[xf+1,yf+1]*(1-x_-y_)
+    else
+        return V[xf+2,yf+1]*(x_) + V[xf+1,yf+2]*(y_) + V[xf+1,yf+1]*(1-x_-y_)
     end 
 end
 
@@ -79,6 +83,7 @@ function interpV(simplex, V)
 	return interpolate_V
 end
 
+                
 function dmd_transition_fs(new_state, action, old_state)
     return [pdf(Normal(alpha + beta*log.(action), sigma_eps), new_state) for beta in betas_transition]
 end
