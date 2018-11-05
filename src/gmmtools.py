@@ -101,8 +101,8 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
 def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
                       prior_shocks, df, min_periods=3) -> float:
     """
-    Computes the norm of the different between the observed moments and
-    the moments predicted by the model + θ
+    Computes the **norm** (not gmm error) of the different between the
+    observed moments and the moments predicted by the model + θ
 
     Moments: average (over firms) standard deviation for each time period
 
@@ -117,3 +117,26 @@ def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
 
     return np.linalg.norm(mean_std_expected_prices.values
                           - mean_std_observed_prices.values)
+
+
+def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices: object,
+              prior_shocks: object, df: object, min_periods: object = 3, w: object = None) -> float:
+    """
+    Computes the gmm error of the different between the observed moments and
+    the moments predicted by the model + θ
+
+    Moments: average (over firms) standard deviation for each time period
+
+    x: characteristics of firms
+    mean_std_observed_prices: mean (over firms) of standard deviation per t
+    """
+    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
+    mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
+                                                                   lambdas0, min_periods)
+
+    t = len(mean_std_expected_prices)
+
+    if w is None:
+        w = np.identity(t)
+    g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
+    return (g.T @ w @ g)[0, 0]

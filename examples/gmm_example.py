@@ -26,7 +26,6 @@ lambdas_ext = src.generate_simplex_3dims(n_per_dim=
 policyF = src.interpolate_wguess(lambdas_ext, policy)
 
 
-
 # Simulation parameters \
 ########################
 σerror= 0.005 #0.01
@@ -38,6 +37,9 @@ min_periods= 3
 β10, β11 = -2., 3.
 β20, β21 = 0.03, -2.
 betas = [β10, β11, β20, β21]
+
+#GMM parameters
+maxiters = 3
 
 
 def lambda_0(x, prior_shock) -> np.ndarray:
@@ -74,15 +76,15 @@ df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 
 
-def error_w_data(θ):
-    return src.std_moments_error(θ, policyF, xs,
+def error_w_data(θ) -> float:
+    return src.gmm_error(θ, policyF, xs,
                       mean_std_observed_prices=mean_std_observed_prices, df=df,
                                  prior_shocks=prior_shocks, min_periods=min_periods)
 
 print("Preprocessing done. Now starting optimization")
 
 start = time.time()
-maxiters=3
+
 optimi = opt.differential_evolution(error_w_data, [(-2.5, 0.5), (3., 3.2),
                                                    (-0.5, 0.2), (-3, 1)],
                                     maxiter=maxiters)
