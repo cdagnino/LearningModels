@@ -27,6 +27,7 @@ def nb_clip(x, a, b):
     return x
 
 
+#Add pass through H here
 @njit()
 def from_theta_to_lambda0(x, θ, prior_shock):
     """
