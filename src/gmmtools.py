@@ -2,6 +2,8 @@ import numpy as np
 from numba import njit
 import pandas as pd
 import src
+from scipy import optimize
+from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, fun, jac
 
 
 def gen_prior_shocks(nfirms, σerror=0.005):
@@ -27,22 +29,38 @@ def nb_clip(x, a, b):
     return x
 
 
+placeholder_βs = np.array([-0.5, -0.7, -0.9])
+
+
+# TODO: this should take the betas from parameters of the model
+def jac_(x):
+    return jac(x, βs=placeholder_βs)
+
+
 #Add pass through H here
 @njit()
-def from_theta_to_lambda0(x, θ, prior_shock):
+def from_theta_to_lambda0(x, θ, prior_shock, starting_values=np.array([0.1, 0.5])):
     """
     Generates a lambda0 vector from the theta vector and x
+    It passes through the entropy and expected value of betas (H, EB)
+
     θ = [θ10, θ11, θ20, θ21]
     x : characteristics of firms
     prior_shock: puts randomness in the relationship between theta and lambda
     """
-    lambda1 = logistic(θ[0] + θ[1]*x + prior_shock)
-    maxlambda2_value = 1 - lambda1
-    #np.clip ---> nb_clip
-    lambda2 = nb_clip(logistic(θ[2] + θ[3]*x + prior_shock),
-                      0, maxlambda2_value)
-    lambda3 = logistic(1 - lambda1 - lambda2)
-    return np.array([lambda1, lambda2, lambda3])
+    #TODO: bound H between 0 and log(cardinality(lambdas))
+    H = np.e**((θ[0] + θ[1]*x + prior_shock))
+    Eβ = -np.e**(θ[2] + θ[3]*x + prior_shock) #Bound it?
+
+    def fun_(x):
+        return fun(x, placeholder_βs, Eβ, H)
+
+    #Numerical procedure to get lambda vector from H, Eβ
+    sol = optimize.root(fun_, logit(starting_values), jac=jac_)
+
+    lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+
+    return lambdas_sol
 
 
 def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
