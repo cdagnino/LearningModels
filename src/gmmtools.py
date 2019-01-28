@@ -29,16 +29,12 @@ def nb_clip(x, a, b):
     return x
 
 
-placeholder_βs = np.array([-0.5, -0.7, -0.9])
-
-
-# TODO: this should take the betas from parameters of the model
 def jac_(x):
-    return jac(x, βs=placeholder_βs)
+    return jac(x, βs=src.betas_transition)
 
 
 #Add pass through H here
-@njit()
+#@njit()
 def from_theta_to_lambda0(x, θ, prior_shock, starting_values=np.array([0.1, 0.5])):
     """
     Generates a lambda0 vector from the theta vector and x
@@ -53,7 +49,7 @@ def from_theta_to_lambda0(x, θ, prior_shock, starting_values=np.array([0.1, 0.5
     Eβ = -np.e**(θ[2] + θ[3]*x + prior_shock) #Bound it?
 
     def fun_(x):
-        return fun(x, placeholder_βs, Eβ, H)
+        return fun(x, src.betas_transition, Eβ, H)
 
     #Numerical procedure to get lambda vector from H, Eβ
     sol = optimize.root(fun_, logit(starting_values), jac=jac_)
