@@ -34,8 +34,8 @@ time_periods = 40
 min_periods= 3
 
 #Suitable for logistic
-β10, β11 = -2., 3.
-β20, β21 = 0.03, -2.
+β10, β11 = -2, 3.5
+β20, β21 = 1.3, -2.
 betas = [β10, β11, β20, β21]
 
 #GMM parameters
@@ -69,8 +69,7 @@ prior_shocks = src.gen_prior_shocks(Nfirms, σerror=σerror)
 dmd_shocks = src.generate_dmd_shocks(n=Nfirms, t=time_periods, dmd_σϵ=src.const.σ_ɛ)
 
 df = src.simulate_all_firms(Nfirms, valueF, policyF, xs, θ=betas,
-                   dmd_shocks=dmd_shocks, prior_shocks=prior_shocks)
-
+                            dmd_shocks=dmd_shocks, prior_shocks=prior_shocks)
 
 
 std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=3)
@@ -96,7 +95,7 @@ optimi = opt.differential_evolution(error_w_data, [(-2.5, 0.5), (3., 3.2),
                                                    (-0.5, 0.2), (-3, 1)],
                                     maxiter=maxiters)
 
-time_taken =  time.time()/60 - start/60
+time_taken = time.time()/60 - start/60
 print("Taken {0} minutes for {1} iterations. {2} per iteration".format(
       time_taken, maxiters, time_taken/maxiters))
 
