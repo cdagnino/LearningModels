@@ -5,7 +5,8 @@ from numba import njit
 
 #@njit()
 def my_entropy(p):
-    return -np.sum(p * np.log(p))
+    eps = 10e-9
+    return -np.sum(p+eps * np.log(p+eps))
 
 
 def force_sum_to_1(x):
