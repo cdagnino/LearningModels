@@ -49,19 +49,6 @@ def lambda_0(x, prior_shock) -> np.ndarray:
     return src.from_theta_to_lambda0(x, θ=betas, prior_shock=prior_shock)
 
 
-#This part isn't actually needed? The lambda0 vector is obtained
-#from src.from_theta_to_lambda0
-"""
-def get_lambdas_from_x(xs, prior_shocks):
-    y = np.empty((len(xs), 3))
-    for i in range(len(xs)):
-        y[i] = lambda_0(xs[i], prior_shocks[i])
-    return y
-
-
-lambdas0 = get_lambdas_from_x(xs, prior_shocks)
-"""
-
 xs = np.abs(np.random.normal(0, 0.18, size=Nfirms))
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=σerror)
 
