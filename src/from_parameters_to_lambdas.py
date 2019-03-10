@@ -1,13 +1,15 @@
 import src
 import numpy as np
+from scipy.stats import entropy
 from numba import njit
 
 
 #@njit()
+#def my_entropy(p):
+#    eps = 10e-9
+#    return -np.sum(p+eps * np.log(p+eps))
 def my_entropy(p):
-    eps = 10e-9
-    return -np.sum(p+eps * np.log(p+eps))
-
+    return entropy(p)
 
 def force_sum_to_1(x):
     """
