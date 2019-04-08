@@ -8,7 +8,7 @@ sys.path.append('../')
 import src
 
 #GMM parameters
-maxiters = 12 #120. About 2 minutes per iteration
+maxiters = 50 #120. About 2 minutes per iteration
 
 # Simulation parameters \
 ########################
