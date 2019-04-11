@@ -35,7 +35,7 @@ def jac_(x):
 
 #Add pass through H here
 #@njit()
-def from_theta_to_lambda0(x, θ, prior_shock, starting_values=np.array([0.1, 0.5])):
+def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5])):
     """
     Generates a lambda0 vector from the theta vector and x
     It passes through the entropy and expected value of betas (H, EB)
@@ -44,7 +44,7 @@ def from_theta_to_lambda0(x, θ, prior_shock, starting_values=np.array([0.1, 0.5
     x : characteristics of firms
     prior_shock: puts randomness in the relationship between theta and lambda
     """
-    #TODO: bound H between 0 and log(cardinality(lambdas))
+    #TODO: bound H between 0 and log(cardinality(lambdas)) or use standardized H
     H = np.e**((θ[0] + θ[1]*x + prior_shock))
     Eβ = -np.e**(θ[2] + θ[3]*x + prior_shock) #Bound it?
 
