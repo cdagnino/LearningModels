@@ -53,6 +53,7 @@ xs = np.random.rand(Nfirms)
 # Just add a zeroes. I think it's OK for the gmm estimation
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
 
+
 # Optimization
 ######################
 def error_w_data(θ) -> float:
