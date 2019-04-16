@@ -148,9 +148,12 @@ def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices:
     lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
     mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
                                                                    lambdas0, min_periods)
-
+    try:
+        assert len(mean_std_observed_prices) == len(mean_std_expected_prices)
+    except AssertionError as e:
+        e.args += (len(mean_std_observed_prices), len(mean_std_expected_prices))
+        raise
     t = len(mean_std_expected_prices)
-
     if w is None:
         w = np.identity(t)
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]

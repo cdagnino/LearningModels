@@ -38,7 +38,9 @@ policyF = src.interpolate_wguess(lambdas_ext, policy)
 
 
 #dataframe and standard deviation
-df = pd.read_csv()
+cleaned_data = "../../firm_learning/data/cleaned_data/"
+
+df = pd.read_csv(cleaned_data + "medium_prod_for_gmm.csv")
 std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=3)
             .std().reset_index()
             .rename(columns={'level_1': 't', 'level_prices': 'std_dev_prices'}))
@@ -47,10 +49,9 @@ df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 
 mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 
-Nfirms = 10
-#TODO replace with actual values of firms
-xs = np.random.rand(Nfirms)
-# Just add a zeroes. I think it's OK for the gmm estimation
+xs = df.groupby('firm').xs.first().values
+Nfirms = len(xs)
+# Just add a zeroes. Makes sense for the gmm estimation
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
 
 
