@@ -3,6 +3,7 @@ import dill
 import pandas as pd
 from scipy import optimize as opt
 import time
+from sklearn.preprocessing import MinMaxScaler
 import sys
 sys.path.append('../')
 import src
@@ -12,11 +13,8 @@ maxiters = 50 #120. About 2 minutes per iteration
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 
-#Check if this parameters still make sense for the current product
-#β10, β11 = -2, 3.5
-#β20, β21 = 1.3, -2.
-#betas = [β10, β11, β20, β21]
-
+#Parameter limits that make sense for the product (Hand-picked this time)
+optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
 
 #Load policy and value function
 #####################
@@ -50,7 +48,11 @@ df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 
 mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 
+#Mix Max scaling for xs
 xs = df.groupby('firm').xs.first().values
+scaler = MinMaxScaler()
+xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
+
 Nfirms = len(xs)
 # Just add a zeroes. Makes sense for the gmm estimation
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
@@ -65,8 +67,7 @@ def error_w_data(θ) -> float:
 
 
 start = time.time()
-optimi = opt.differential_evolution(error_w_data, [(-2.5, 0.5), (2.0, 4.0),
-                                                   (0.5, 2), (-3., 1.)],
+optimi = opt.differential_evolution(error_w_data, optimization_limits,
                                     maxiter=maxiters)
 
 # Print results
