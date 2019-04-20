@@ -134,8 +134,8 @@ def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
                           - mean_std_observed_prices.values)
 
 
-def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices: object,
-              prior_shocks: object, df: object, min_periods: object = 3, w: object = None) -> float:
+def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
+              prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
     """
     Computes the gmm error of the different between the observed moments and
     the moments predicted by the model + θ
@@ -148,6 +148,16 @@ def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices:
     lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
     mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
                                                                    lambdas0, min_periods)
+
+    #Eliminate nulls and get intersection of observed and expected moments
+    mean_std_observed_prices = mean_std_observed_prices[pd.notnull(mean_std_observed_prices)]
+    mean_std_expected_prices = mean_std_expected_prices[pd.notnull(mean_std_expected_prices)]
+    index_inters = np.intersect1d(mean_std_observed_prices.index,
+                                  mean_std_expected_prices.index)
+
+    mean_std_observed_prices = mean_std_observed_prices.loc[index_inters]
+    mean_std_expected_prices = mean_std_expected_prices.loc[index_inters]
+
     try:
         assert len(mean_std_observed_prices) == len(mean_std_expected_prices)
     except AssertionError as e:
