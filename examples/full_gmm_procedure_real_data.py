@@ -10,18 +10,19 @@ import src
 #GMM parameters
 maxiters = 50 #120. About 2 minutes per iteration
 time_periods = 40 #Maximum spell_t to consider
-min_periods = 3 #What
+min_periods = 3 #Min window period for standard deviation
 
 #Check if this parameters still make sense for the current product
-β10, β11 = -2, 3.5
-β20, β21 = 1.3, -2.
-betas = [β10, β11, β20, β21]
+#β10, β11 = -2, 3.5
+#β20, β21 = 1.3, -2.
+#betas = [β10, β11, β20, β21]
 
 
 #Load policy and value function
 #####################
-file_n = "2018-10-5vfi_dict.dill" #Personal Macbook
-#file_n = "2019-2-16vfi_dict.dill" #Work Macbook
+#file_n = "2018-10-5vfi_dict.dill" #VF for simulsted data
+file_n = "2019-4-12medium_prod_vfi_dict.dill"
+#file_n = "" #Work Macbook
 with open('../data/' + file_n, 'rb') as file:
     data_d = dill.load(file)
 
@@ -64,11 +65,9 @@ def error_w_data(θ) -> float:
 
 
 start = time.time()
-
 optimi = opt.differential_evolution(error_w_data, [(-2.5, 0.5), (2.0, 4.0),
                                                    (0.5, 2), (-3., 1.)],
                                     maxiter=maxiters)
-
 
 # Print results
 #################
