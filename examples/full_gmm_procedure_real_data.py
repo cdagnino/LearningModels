@@ -54,7 +54,7 @@ scaler = MinMaxScaler()
 xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
 
 Nfirms = len(xs)
-# Just add a zeroes. Makes sense for the gmm estimation
+# Just add zeroes. Makes sense for the gmm estimation
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
 
 
