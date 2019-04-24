@@ -2,6 +2,8 @@ import numpy as np
 from numba import njit
 import pandas as pd
 import src
+from scipy import optimize
+from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, fun, jac
 
 
 def gen_prior_shocks(nfirms, σerror=0.005):
@@ -27,21 +29,34 @@ def nb_clip(x, a, b):
     return x
 
 
-@njit()
-def from_theta_to_lambda0(x, θ, prior_shock):
+def jac_(x):
+    return jac(x, βs=src.betas_transition)
+
+
+#Add pass through H here
+#@njit()
+def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5])):
     """
     Generates a lambda0 vector from the theta vector and x
+    It passes through the entropy and expected value of betas (H, EB)
+
     θ = [θ10, θ11, θ20, θ21]
     x : characteristics of firms
     prior_shock: puts randomness in the relationship between theta and lambda
     """
-    lambda1 = logistic(θ[0] + θ[1]*x + prior_shock)
-    maxlambda2_value = 1 - lambda1
-    #np.clip ---> nb_clip
-    lambda2 = nb_clip(logistic(θ[2] + θ[3]*x + prior_shock),
-                      0, maxlambda2_value)
-    lambda3 = logistic(1 - lambda1 - lambda2)
-    return np.array([lambda1, lambda2, lambda3])
+    #TODO: bound H between 0 and log(cardinality(lambdas)) or use standardized H
+    H = np.e**((θ[0] + θ[1]*x + prior_shock))
+    Eβ = -np.e**(θ[2] + θ[3]*x + prior_shock) #Bound it?
+
+    def fun_(x):
+        return fun(x, src.betas_transition, Eβ, H)
+
+    #Numerical procedure to get lambda vector from H, Eβ
+    sol = optimize.root(fun_, logit(starting_values), jac=jac_)
+
+    lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+
+    return lambdas_sol
 
 
 def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
@@ -119,8 +134,8 @@ def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
                           - mean_std_observed_prices.values)
 
 
-def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices: object,
-              prior_shocks: object, df: object, min_periods: object = 3, w: object = None) -> float:
+def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
+              prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
     """
     Computes the gmm error of the different between the observed moments and
     the moments predicted by the model + θ
@@ -134,8 +149,21 @@ def gmm_error(θ: object, policyF: object, xs: object, mean_std_observed_prices:
     mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
                                                                    lambdas0, min_periods)
 
-    t = len(mean_std_expected_prices)
+    #Eliminate nulls and get intersection of observed and expected moments
+    mean_std_observed_prices = mean_std_observed_prices[pd.notnull(mean_std_observed_prices)]
+    mean_std_expected_prices = mean_std_expected_prices[pd.notnull(mean_std_expected_prices)]
+    index_inters = np.intersect1d(mean_std_observed_prices.index,
+                                  mean_std_expected_prices.index)
 
+    mean_std_observed_prices = mean_std_observed_prices.loc[index_inters]
+    mean_std_expected_prices = mean_std_expected_prices.loc[index_inters]
+
+    try:
+        assert len(mean_std_observed_prices) == len(mean_std_expected_prices)
+    except AssertionError as e:
+        e.args += (len(mean_std_observed_prices), len(mean_std_expected_prices))
+        raise
+    t = len(mean_std_expected_prices)
     if w is None:
         w = np.identity(t)
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
