@@ -69,22 +69,40 @@ def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
     return lambdas0
 
 
+def simulated_dmd(current_price: float, dmd_shock: float) -> float:
+    """
+    Generates a quantity base on a model of the real function
+
+    :param current_price: price chosen at t by policy function. LEVEL, not log
+    :param dmd_shock
+    :return: demand for this period
+    """
+    #TODO: produce shocks outside! Otherwise GMM might struggle
+    return src.const.α + src.const.mature_beta*np.log(current_price) + dmd_shock
+
+
 # TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
-def generate_pricing_decisions(policyF, lambda0: np.ndarray, demand_obs: np.ndarray) -> np.ndarray:
+def generate_pricing_decisions(policyF, lambda0: np.ndarray,
+                               demand_obs: np.ndarray, dmd_shocks: np.ndarray, use_real_dmd=False) -> np.ndarray:
     """
     Generates a vector of pricing for one firm based on the policy function
     (could be vectorized later!)
     """
     current_lambdas = lambda0
     level_price_decisions = np.empty_like(demand_obs)
+
     for t, log_dmd in enumerate(demand_obs):
-        level_price = policyF(current_lambdas[:2])  # Check: Is this correctly defined with the first two elements?
+        level_price = policyF(current_lambdas[:-1])  # Check: Is this correctly defined with the first two elements?
         level_price_decisions[t] = level_price
 
-        # lambda updates: log_dmd: Yes, level_price: Yes
-        new_lambdas = src.update_lambdas(log_dmd, src.dmd_transition_fs, current_lambdas,
-                                         action=level_price, old_state=1.2)
+        if use_real_dmd:
+            dmd_to_update_lambda = log_dmd
+        else:
+            dmd_to_update_lambda = simulated_dmd(level_price, dmd_shocks[t])
 
+        # lambda updates: log_dmd: Yes, level_price: Yes
+        new_lambdas = src.update_lambdas(dmd_to_update_lambda, src.dmd_transition_fs, current_lambdas,
+                                         action=level_price, old_state=1.2)
         current_lambdas = new_lambdas
 
     return level_price_decisions
@@ -97,7 +115,8 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
     pricing_decision_dfs = []
     for i, firm in enumerate(df.firm.unique()):
         prices = src.generate_pricing_decisions(policyF, lambdas_at_0[i],
-                                                df[df.firm == firm].log_dmd.values)
+                                                df[df.firm == firm].log_dmd.values,
+                                                df[df.firm == firm].dmd_shocks.values)
         pricing_decision_dfs.append(pd.DataFrame({'level_prices': prices,
                                                   'firm': np.repeat(firm, len(prices))
                                                   }))

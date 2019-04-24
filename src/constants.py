@@ -8,7 +8,8 @@
 import numpy as np
 
 betas_transition = np.array([-4., -2., -1.1])
-σ_ɛ = 0.5
+mature_beta = -1.5 #check this
+σ_ɛ = 0.5 #check with data
 α = 1.6058
 c = 8.
 δ = 0.95

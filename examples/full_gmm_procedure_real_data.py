@@ -9,12 +9,13 @@ sys.path.append('../')
 import src
 
 #GMM parameters
-maxiters = 50 #120. About 2 minutes per iteration
+maxiters = 10 #1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 
 #Parameter limits that make sense for the product (Hand-picked this time)
 optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
+
 
 #Load policy and value function
 #####################
@@ -45,6 +46,7 @@ std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=3)
             .rename(columns={'level_1': 't', 'level_prices': 'std_dev_prices'}))
 
 df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
+df["dmd_shocks"] = np.random.normal(loc=0, scale=src.const.σ_ɛ, size=len(df))
 
 mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 
