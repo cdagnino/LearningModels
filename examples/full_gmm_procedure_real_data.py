@@ -9,7 +9,7 @@ sys.path.append('../')
 import src
 
 #GMM parameters
-maxiters = 10 #1.2 minutos por iteración
+maxiters = 50 #1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 

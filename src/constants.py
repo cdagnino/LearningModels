@@ -2,14 +2,14 @@
 #
 #
 # Constants / config file
-# UPC_INT == 6836
+# for UPC_INT == 6836
 #
 ###############
 import numpy as np
 
 betas_transition = np.array([-4., -2., -1.1])
-mature_beta = -1.5 #check this
-σ_ɛ = 0.5 #check with data
+mature_beta = -1.3529
+σ_ɛ = 1.5    #1.017 is the Minimum bound
 α = 1.6058
 c = 8.
 δ = 0.95
