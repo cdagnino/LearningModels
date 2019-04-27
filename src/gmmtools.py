@@ -3,7 +3,7 @@ from numba import njit
 import pandas as pd
 import src
 from scipy import optimize
-from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, fun, jac
+from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, h_and_exp_betas_eqns, jac
 
 
 def gen_prior_shocks(nfirms, σerror=0.005):
@@ -33,7 +33,6 @@ def jac_(x):
     return jac(x, βs=src.betas_transition)
 
 
-#Add pass through H here
 #@njit()
 def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5])):
     """
@@ -48,8 +47,8 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0
     H = np.e**((θ[0] + θ[1]*x + prior_shock))
     Eβ = -np.e**(θ[2] + θ[3]*x + prior_shock) #Bound it?
 
-    def fun_(x):
-        return fun(x, src.betas_transition, Eβ, H)
+    def fun_(lambda_try):
+        return h_and_exp_betas_eqns(lambda_try, src.betas_transition, Eβ, H)
 
     #Numerical procedure to get lambda vector from H, Eβ
     sol = optimize.root(fun_, logit(starting_values), jac=jac_)
@@ -77,7 +76,6 @@ def simulated_dmd(current_price: float, dmd_shock: float) -> float:
     :param dmd_shock
     :return: demand for this period
     """
-    #TODO: produce shocks outside! Otherwise GMM might struggle
     return src.const.α + src.const.mature_beta*np.log(current_price) + dmd_shock
 
 
@@ -153,22 +151,22 @@ def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
                           - mean_std_observed_prices.values)
 
 
-def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
-              prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
+def get_intersection_of_observed_and_expected_prices(mean_std_observed_prices: pd.Series,
+                                                     df: pd.DataFrame, policyF,
+                                                     lambdas0, min_periods):
     """
-    Computes the gmm error of the different between the observed moments and
-    the moments predicted by the model + θ
+    Generates expected prices, eliminate nulls and finds
+    intersection of observed and expected moments
 
-    Moments: average (over firms) standard deviation for each time period
-
-    x: characteristics of firms
-    mean_std_observed_prices: mean (over firms) of standard deviation per t
+    :param df:
+    :param policyF:
+    :param lambdas_at_0:
+    :param min_periods:
+    :return:
     """
-    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
     mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
                                                                    lambdas0, min_periods)
 
-    #Eliminate nulls and get intersection of observed and expected moments
     mean_std_observed_prices = mean_std_observed_prices[pd.notnull(mean_std_observed_prices)]
     mean_std_expected_prices = mean_std_expected_prices[pd.notnull(mean_std_expected_prices)]
     index_inters = np.intersect1d(mean_std_observed_prices.index,
@@ -177,13 +175,36 @@ def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_pri
     mean_std_observed_prices = mean_std_observed_prices.loc[index_inters]
     mean_std_expected_prices = mean_std_expected_prices.loc[index_inters]
 
+    return mean_std_observed_prices, mean_std_expected_prices
+
+
+def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
+              prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
+    """
+    Computes the gmm error of the different between the observed moments and
+    the moments predicted by the model + θ
+
+    Moments: average (over firms) standard deviation for each time period
+
+    xs: characteristics of firms
+    mean_std_observed_prices: mean (over firms) of standard deviation per t
+    w: weighting matrix for GMM objective
+    """
+    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
+
+    mean_std_observed_prices, mean_std_expected_prices = (
+             get_intersection_of_observed_and_expected_prices(mean_std_observed_prices,
+                                                              df, policyF, lambdas0, min_periods))
+
     try:
         assert len(mean_std_observed_prices) == len(mean_std_expected_prices)
     except AssertionError as e:
         e.args += (len(mean_std_observed_prices), len(mean_std_expected_prices))
         raise
+
     t = len(mean_std_expected_prices)
     if w is None:
         w = np.identity(t)
+    #TODO: simplify this. Pass to values,  no need for np.newaxis
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
     return (g.T @ w @ g)[0, 0]
