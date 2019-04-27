@@ -11,12 +11,13 @@ from numba import njit
 def my_entropy(p):
     return entropy(p)
 
-def force_sum_to_1(x):
+
+def force_sum_to_1(orig_lambdas):
     """
     Forces lambdas to sum to 1
     (although last element might be negative)
     """
-    return np.hstack([x, 1-x.sum()])
+    return np.hstack([orig_lambdas, 1 - orig_lambdas.sum()])
 
 
 def logit(p):
@@ -28,13 +29,13 @@ def reparam_lambdas(x):
     return np.e**x / (1 + np.e**x)
 
 
-def fun(x, βs, Eβ, H):
+def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H):
     """
-    x: deep parameters
+    orig_lambdas: original lambda tries (not summing to zero, not within [0, 1])
     Eβ, H: the objectives
     βs: fixed constant of the model
     """
-    lambdas = force_sum_to_1(reparam_lambdas(x))
+    lambdas = force_sum_to_1(reparam_lambdas(orig_lambdas))
     return [my_entropy(lambdas) - H,
             np.dot(βs, lambdas) - Eβ]
 
