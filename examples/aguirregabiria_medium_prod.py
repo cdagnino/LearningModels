@@ -21,9 +21,9 @@ if benchmark_values:
 else: #Time per iteration: 0.5, 4, 3.6, 4.4
     length_of_price_grid = 50
     min_price, max_price = 7, 20
-    n_of_lambdas_per_dim = 15
+    n_of_lambdas_per_dim = 20
     max_iters = 100
-    error_tol = 1e-5
+    error_tol = 1e-6
 
 
 def period_profit(p: np.ndarray, lambdas: np.ndarray, betas_transition=const.betas_transition):
