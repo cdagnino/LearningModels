@@ -9,14 +9,6 @@ from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, 
 def gen_prior_shocks(nfirms, σerror=0.005):
     return np.random.normal(loc=0., scale=σerror, size=nfirms)
 
-
-@njit()
-def logistic(x):
-    return 1/(1+np.e**(-x))
-
-#σerror=0.005. np.random.normal(0, σerror)
-
-
 @njit()
 def nb_clip(x, a, b):
     """
