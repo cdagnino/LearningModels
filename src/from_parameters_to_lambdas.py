@@ -36,15 +36,15 @@ def reparam_lambdas(x):
     return expit(x)
 
 
-def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H):
+def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H, w=np.array([[1., 0.], [0., 1./4.]])):
     """
     orig_lambdas: original lambda tries (not summing to zero, not within [0, 1])
     Eβ, H: the objectives
     βs: fixed constant of the model
     """
-    lambdas = force_sum_to_1(reparam_lambdas(orig_lambdas))
-    return [my_entropy(lambdas) - H,
-            np.dot(βs, lambdas) - Eβ]
+    lambdas = force_sum_to_1(src.reparam_lambdas(orig_lambdas))
+    g = np.array([entropy(lambdas) - H, np.dot(βs, lambdas) - Eβ])
+    return g.T @ w @ g
 
 
 #TODO: make this general, not limited to dim(x)=3

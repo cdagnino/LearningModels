@@ -43,9 +43,15 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0
         return h_and_exp_betas_eqns(lambda_try, src.betas_transition, Eβ, H)
 
     #Numerical procedure to get lambda vector from H, Eβ
-    sol = optimize.root(fun_, logit(starting_values), jac=jac_)
-
+    #sol = optimize.root(fun_, logit(starting_values), jac=jac_)
+    sol = optimize.minimize(fun_, x0=src.logit(starting_values), method='Powell')
     lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+    if not sol.success:
+        # Use Nelder-Mead from different starting_value
+        sol = optimize.minimize(fun_, x0=src.logit(np.array([0.1, 0.08])), method='Nelder-Mead')
+        lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+        if not sol.success:
+            print(f"Theta to lambda0 didn't converge", sol.x, lambdas_sol)
 
     return lambdas_sol
 
@@ -72,6 +78,7 @@ def simulated_dmd(current_price: float, dmd_shock: float) -> float:
 
 
 # TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
+# But I could write it with explicit parameters and jit!
 def generate_pricing_decisions(policyF, lambda0: np.ndarray,
                                demand_obs: np.ndarray, dmd_shocks: np.ndarray, use_real_dmd=False) -> np.ndarray:
     """
@@ -195,8 +202,10 @@ def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_pri
         raise
 
     t = len(mean_std_expected_prices)
+    assert t > 0
     if w is None:
         w = np.identity(t)
     #TODO: simplify this. Pass to values,  no need for np.newaxis
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
+
     return (g.T @ w @ g)[0, 0]
