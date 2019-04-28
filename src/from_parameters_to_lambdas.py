@@ -1,6 +1,7 @@
 import src
 import numpy as np
 from scipy.stats import entropy
+from scipy.special import expit
 from numba import njit
 
 
@@ -32,7 +33,7 @@ def logit(p):
 
 def reparam_lambdas(x):
     """ inverse logit. Forces the lambdas to be within 0 and 1"""
-    return np.e**x / (1 + np.e**x)
+    return expit(x)
 
 
 def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H):
