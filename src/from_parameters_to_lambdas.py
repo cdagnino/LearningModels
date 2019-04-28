@@ -17,7 +17,13 @@ def force_sum_to_1(orig_lambdas):
     Forces lambdas to sum to 1
     (although last element might be negative)
     """
-    return np.hstack([orig_lambdas, 1 - orig_lambdas.sum()])
+    sum_lambdas = orig_lambdas.sum()
+    if sum_lambdas > 1.:
+        orig_lambdas /= sum_lambdas
+        # TODO: think if this is what I really want
+        return np.hstack([orig_lambdas, 0.])
+    else:
+        return np.hstack([orig_lambdas, 1 - orig_lambdas.sum()])
 
 
 def logit(p):
