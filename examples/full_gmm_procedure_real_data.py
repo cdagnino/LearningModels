@@ -8,10 +8,13 @@ import sys
 sys.path.append('../')
 import src
 
+np.random.seed(383461)
 #GMM parameters
-maxiters = 50 #1.2 minutos por iteración
+maxiters = 100 #1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
+use_logs_for_x = False
+print(f"Started at {time.asctime()}. {maxiters} maxiters. Logs? {use_logs_for_x}")
 
 #Parameter limits that make sense for the product (Hand-picked this time)
 optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
@@ -19,8 +22,10 @@ optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
 
 #Load policy and value function
 #####################
-#file_n = "2018-10-5vfi_dict.dill" #VF for simulsted data
-file_n = "2019-4-12medium_prod_vfi_dict.dill"
+
+#file_n = "2019-4-12medium_prod_vfi_dict.dill"
+#file_n = "2019-4-27medium_prod_vfi_dict.dill"
+file_n = "2019-4-28medium_prod_vfi_dict.dill"
 #file_n = "" #Work Macbook
 with open('../data/' + file_n, 'rb') as file:
     data_d = dill.load(file)
@@ -41,18 +46,21 @@ policyF = src.interpolate_wguess(lambdas_ext, policy)
 cleaned_data = "../../firm_learning/data/cleaned_data/"
 
 df = pd.read_csv(cleaned_data + "medium_prod_for_gmm.csv")
-std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=3)
+std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=min_periods)
             .std().reset_index()
             .rename(columns={'level_1': 't', 'level_prices': 'std_dev_prices'}))
 
 df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 df["dmd_shocks"] = np.random.normal(loc=0, scale=src.const.σ_ɛ, size=len(df))
 
-mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
+#mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
 
 #Mix Max scaling for xs
-xs = df.groupby('firm').xs.first().values
+if use_logs_for_x:
+    xs = np.log(df.groupby('firm').xs.first().values + 0.1)
+else:
+    xs = (df.groupby('firm').xs.first().values + 0.1)
 scaler = MinMaxScaler()
 xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
 
