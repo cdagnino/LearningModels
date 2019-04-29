@@ -89,7 +89,7 @@ def generate_pricing_decisions(policyF, lambda0: np.ndarray,
     level_price_decisions = np.empty_like(demand_obs)
 
     for t, log_dmd in enumerate(demand_obs):
-        level_price = policyF(current_lambdas[:-1])  # Check: Is this correctly defined with the first two elements?
+        level_price = policyF(current_lambdas[:-1])
         level_price_decisions[t] = level_price
 
         if use_real_dmd:
@@ -111,15 +111,16 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
     """
     pricing_decision_dfs = []
     for i, firm in enumerate(df.firm.unique()):
-        prices = src.generate_pricing_decisions(policyF, lambdas_at_0[i],
-                                                df[df.firm == firm].log_dmd.values,
-                                                df[df.firm == firm].dmd_shocks.values)
+        prices = generate_pricing_decisions(policyF, lambdas_at_0[i],
+                                            df[df.firm == firm].log_dmd.values,
+                                            df[df.firm == firm].dmd_shocks.values)
         pricing_decision_dfs.append(pd.DataFrame({'level_prices': prices,
                                                   'firm': np.repeat(firm, len(prices))
                                                   }))
 
     pricing_decision_df = pd.concat(pricing_decision_dfs, axis=0)
 
+    #TODO change this calculation, it doesn't correspond to exactly to the process done to real data
     std_dev_df = (pricing_decision_df.groupby('firm').level_prices.rolling(window=4,
                                                                            min=min_periods)
                   .std().reset_index()

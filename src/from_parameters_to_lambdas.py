@@ -47,7 +47,7 @@ def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H, w=np.array([[1., 0.], [0., 1
     return g.T @ w @ g
 
 
-#TODO: make this general, not limited to dim(x)=3
+#Not relevant anymore (minimize is using a derivative free method)
 def jac(x, βs):
     """
     Jacobian for reparametrization of lambdas.
