@@ -49,6 +49,7 @@ df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 df["dmd_shocks"] = np.random.normal(loc=0, scale=src.const.σ_ɛ, size=len(df))
 
 mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
+mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
 
 #Mix Max scaling for xs
 xs = df.groupby('firm').xs.first().values
