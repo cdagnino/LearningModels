@@ -52,6 +52,11 @@ std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=min_periods)
 
 df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 df["dmd_shocks"] = np.random.normal(loc=0, scale=src.const.σ_ɛ, size=len(df))
+df["betas_inertia"] = 0.
+for firm in df.firm.unique():
+    mask: pd.Series = (df.firm == firm)
+    t = mask.sum()
+    df.loc[mask, "betas_inertia"] = src.generate_betas_inertia(t)
 
 #mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]

@@ -68,7 +68,7 @@ def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
 
 def simulated_dmd(current_price: float, dmd_shock: float) -> float:
     """
-    Generates a quantity base on a model of the real function
+    Generates a quantity base on a model of the real dmd function
 
     :param current_price: price chosen at t by policy function. LEVEL, not log
     :param dmd_shock
@@ -77,10 +77,41 @@ def simulated_dmd(current_price: float, dmd_shock: float) -> float:
     return src.const.α + src.const.mature_beta*np.log(current_price) + dmd_shock
 
 
+def simulated_dmd_w_inertia(current_price: float, dmd_shock: float, beta_inertia: float) -> float:
+    """
+    Generates a quantity base on a model of the real dmd function. Incorporates
+    demand intertia or taste shocks
+
+    :param current_price: price chosen at t by policy function. LEVEL, not log
+    :param dmd_shock:
+    :return: demand for this period
+    """
+    return src.const.α + beta_inertia*np.log(current_price) + dmd_shock
+
+
+def generate_betas_inertia(time_periods: int) -> np.ndarray:
+    """
+    Generate an array of beta_inertia values for t time periods
+    """
+    betas = np.empty(time_periods)
+    taste_shocks = np.random.normal(loc=0, scale=src.const.taste_shock_std, size=time_periods)
+
+    b0 = np.clip(np.random.normal(loc=src.const.mature_beta, scale=src.const.beta_shock_std), -np.inf, -1.05)
+    betas[0] = b0
+    old_beta = b0
+    for t in range(1, time_periods):
+        new_beta = np.clip(γ * old_beta + taste_shocks[t], -np.inf, -1.05)
+        betas[t] = new_beta
+        old_beta = new_beta
+
+    return betas
+
 # TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
 # But I could write it with explicit parameters and jit!
 def generate_pricing_decisions(policyF, lambda0: np.ndarray,
-                               demand_obs: np.ndarray, dmd_shocks: np.ndarray, use_real_dmd=False) -> np.ndarray:
+                               demand_obs: np.ndarray, dmd_shocks: np.ndarray,
+                               betas_inertia: np.ndarray, use_real_dmd=False,
+                               use_inertia_dmd=True) -> np.ndarray:
     """
     Generates a vector of pricing for one firm based on the policy function
     (could be vectorized later!)
@@ -95,7 +126,11 @@ def generate_pricing_decisions(policyF, lambda0: np.ndarray,
         if use_real_dmd:
             dmd_to_update_lambda = log_dmd
         else:
-            dmd_to_update_lambda = simulated_dmd(level_price, dmd_shocks[t])
+            if use_inertia_dmd:
+                dmd_to_update_lambda = simulated_dmd_w_inertia(level_price, dmd_shocks[t],
+                                                               betas_inertia[t])
+            else:
+                dmd_to_update_lambda = simulated_dmd(level_price, dmd_shocks[t])
 
         # lambda updates: log_dmd: Yes, level_price: Yes
         new_lambdas = src.update_lambdas(dmd_to_update_lambda, src.dmd_transition_fs, current_lambdas,
@@ -113,7 +148,8 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
     for i, firm in enumerate(df.firm.unique()):
         prices = generate_pricing_decisions(policyF, lambdas_at_0[i],
                                             df[df.firm == firm].log_dmd.values,
-                                            df[df.firm == firm].dmd_shocks.values)
+                                            df[df.firm == firm].dmd_shocks.values,
+                                            df[df.firm == firm].betas_inertia.values)
         pricing_decision_dfs.append(pd.DataFrame({'level_prices': prices,
                                                   'firm': np.repeat(firm, len(prices))
                                                   }))

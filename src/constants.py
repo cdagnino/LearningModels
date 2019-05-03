@@ -15,6 +15,11 @@ c = 8.
 δ = 0.99 #0.95
 #nodes, weights = np.polynomial.hermite.hermgauss(7)
 
+# Beta inertia parameters
+γ = 0.8
+beta_shock_std = 0.05
+taste_shock_std = 0.3
+
 hermite_xs = np.array([-2.6519613568352334924470820065166161144,
                        -1.6735516287674714450318013983035948191,
                        -0.81628788285896466303871095902714581674, 0., 0.8162878828589646630387109590271458167,
