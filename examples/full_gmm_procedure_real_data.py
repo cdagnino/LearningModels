@@ -14,7 +14,7 @@ maxiters = 100 #1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
-print(f"Started at {time.asctime()}. {maxiters} maxiters. Logs? {use_logs_for_x}")
+print(f"Started at {time.asctime()}. Discount: {src.const.δ}. {maxiters} maxiters. Logs for x? {use_logs_for_x}")
 
 #Parameter limits that make sense for the product (Hand-picked this time)
 optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
@@ -24,8 +24,8 @@ optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
 #####################
 
 #file_n = "2019-4-12medium_prod_vfi_dict.dill"
-#file_n = "2019-4-27medium_prod_vfi_dict.dill"
-file_n = "2019-4-28medium_prod_vfi_dict.dill"
+file_n = "2019-4-27medium_prod_vfi_dict.dill" #discount 0.95 (I think)
+#file_n = "2019-4-28medium_prod_vfi_dict.dill" #discount 0.99 (I think)
 #file_n = "" #Work Macbook
 with open('../data/' + file_n, 'rb') as file:
     data_d = dill.load(file)
