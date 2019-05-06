@@ -100,7 +100,7 @@ def generate_betas_inertia(time_periods: int) -> np.ndarray:
     betas[0] = b0
     old_beta = b0
     for t in range(1, time_periods):
-        new_beta = np.clip(γ * old_beta + taste_shocks[t], -np.inf, -1.05)
+        new_beta = np.clip(src.const.γ * old_beta + taste_shocks[t], -np.inf, -1.05)
         betas[t] = new_beta
         old_beta = new_beta
 
@@ -140,7 +140,8 @@ def generate_pricing_decisions(policyF, lambda0: np.ndarray,
     return level_price_decisions
 
 
-def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3):
+def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3,
+                                        correct_std_dev=False):
     """
     Lambdas0: starting priors for each of the N firms
     """
@@ -156,14 +157,20 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
 
     pricing_decision_df = pd.concat(pricing_decision_dfs, axis=0)
 
-    #TODO change this calculation, it doesn't correspond to exactly to the process done to real data
-    std_dev_df = (pricing_decision_df.groupby('firm').level_prices.rolling(window=4,
-                                                                           min=min_periods)
-                  .std().reset_index()
-                  .rename(columns={'level_1': 't',
-                                   'level_prices': 'std_dev_prices'}))
-
-    return std_dev_df.groupby('t').std_dev_prices.mean()[min_periods:]
+    #TODO fill this in
+    if correct_std_dev:
+        pass
+        ##sort by firm, upc_id, week
+        #window=4, min_periods=3, ddof=0  group_vars='UPC_INT'
+        #df.groupby(group_vars)[price_var]
+        #  .rolling(min_periods=min_periods, window=window).std(ddof=ddof))
+        #mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
+    else:
+        std_dev_df = (pricing_decision_df.groupby('firm').level_prices.rolling(window=4, min=min_periods)
+                                         .std().reset_index()
+                                         .rename(columns={'level_1': 't',
+                                                          'level_prices': 'std_dev_prices'}))
+        return std_dev_df.groupby('t').std_dev_prices.mean()[min_periods:]
 
 
 def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
@@ -212,6 +219,10 @@ def get_intersection_of_observed_and_expected_prices(mean_std_observed_prices: p
     mean_std_expected_prices = mean_std_expected_prices.loc[index_inters]
 
     return mean_std_observed_prices, mean_std_expected_prices
+
+
+def prepare_df_for_estimation(df):
+    pass
 
 
 def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,

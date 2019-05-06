@@ -12,7 +12,7 @@ mature_beta = -1.3529
 σ_ɛ = 1.05    #1.017 is the Minimum bound
 α = 1.6058
 c = 8.
-δ = 0.99 #0.95
+δ = 0.95 #0.95, 0.99
 #nodes, weights = np.polynomial.hermite.hermgauss(7)
 
 # Beta inertia parameters
