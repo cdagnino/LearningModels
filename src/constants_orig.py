@@ -2,23 +2,17 @@
 #
 #
 # Constants / config file
-# for UPC_INT == 6836
+#
 #
 ###############
 import numpy as np
 
-betas_transition = np.array([-4., -2., -1.1])
-mature_beta = -1.3529
-σ_ɛ = 1.05    #1.017 is the Minimum bound
-α = 1.6058
-c = 8.
-δ = 0.95 #0.95, 0.99
+betas_transition = np.array([-4, -1.7, -1.2])  # [-4, -1.7, -1.2]  [-3.0, -2.5, -2.0]
+σ_ɛ = 0.5
+α = 1.0
+c = 0.5
+δ = 0.9
 #nodes, weights = np.polynomial.hermite.hermgauss(7)
-
-# Beta inertia parameters
-γ = 0.8
-beta_shock_std = 0.3 #0.05
-taste_shock_std = 0.7 #0.3
 
 hermite_xs = np.array([-2.6519613568352334924470820065166161144,
                        -1.6735516287674714450318013983035948191,
