@@ -17,8 +17,8 @@ c = 8.
 
 # Beta inertia parameters
 γ = 0.8
-beta_shock_std = 0.05
-taste_shock_std = 0.3
+beta_shock_std = 0.3 #0.05
+taste_shock_std = 0.7 #0.3
 
 hermite_xs = np.array([-2.6519613568352334924470820065166161144,
                        -1.6735516287674714450318013983035948191,
