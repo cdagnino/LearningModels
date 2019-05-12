@@ -7,10 +7,11 @@ from sklearn.preprocessing import MinMaxScaler
 import sys
 sys.path.append('../')
 import src
+from numba import njit
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 100 #1.2 minutos por iteración
+maxiters = 2 #100, 1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
@@ -52,11 +53,53 @@ std_devs = (df.groupby('firm').level_prices.rolling(window=4, min=min_periods)
 
 df = pd.merge(df, std_devs, on=['firm', 't'], how='left')
 df["dmd_shocks"] = np.random.normal(loc=0, scale=src.const.σ_ɛ, size=len(df))
+
+#Fix beta_0 and taste shocks for all t and all firms
+n_firms = df.firm.nunique()
+max_t_periods_in_data = df.groupby('firm').log_dmd.count().max()
+taste_shocks = np.random.normal(loc=0, scale=src.const.taste_shock_std,
+                                size=(max_t_periods_in_data, n_firms))
+b0 = np.clip(np.random.normal(loc=src.const.mature_beta, scale=src.const.beta_shock_std, size=n_firms),
+             -np.inf, -1.05)
+
+
+@njit()
+def new_generate_betas_inertia(firm_periods: int, i_firm: int) -> np.array:
+    """
+    Generates the vector of beta demands for a firm for a total of t periods
+    given by the parameter firm_periods
+
+    :param firm_periods:
+    :param i_firm:
+    :return:
+    """
+    betas = np.empty(firm_periods)
+    betas[0] = b0[i_firm]
+    old_beta = b0[i_firm]
+    for t_ in range(1, firm_periods):
+        new_beta = src.nb_clip(src.const.γ * old_beta + taste_shocks[t_, i_firm], -np.inf, -1.05)
+        betas[t_] = new_beta
+        old_beta = new_beta
+
+    return betas
+
+
 df["betas_inertia"] = 0.
-for firm in df.firm.unique():
+
+
+#Old procedure
+#for firm in df.firm.unique():
+#    mask: pd.Series = (df.firm == firm)
+#    t = mask.sum()
+#    df.loc[mask, "betas_inertia"] = src.generate_betas_inertia(t)
+
+
+#New Procedure
+for i_firm, firm in enumerate(df.firm.unique()):
     mask: pd.Series = (df.firm == firm)
     t = mask.sum()
-    df.loc[mask, "betas_inertia"] = src.generate_betas_inertia(t)
+    df.loc[mask, "betas_inertia"] = new_generate_betas_inertia(t, i_firm)
+
 
 #mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
 mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
