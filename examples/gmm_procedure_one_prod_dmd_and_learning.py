@@ -11,7 +11,7 @@ from numba import njit
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 2 #100, 1.2 minutos por iteración
+maxiters = 20 #100, 1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 max_t_to_consider = 37
