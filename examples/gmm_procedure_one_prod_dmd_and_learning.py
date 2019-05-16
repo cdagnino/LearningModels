@@ -19,7 +19,6 @@ use_logs_for_x = False
 print(f"Started at {time.asctime()}. Discount: {src.const.δ}. {maxiters} maxiters. Logs for x? {use_logs_for_x}")
 
 
-
 #Load policy and value function
 #####################
 
@@ -58,26 +57,6 @@ max_t_periods_in_data = df.groupby('firm').log_dmd.count().max()
 
 
 @njit()
-def new_generate_betas_inertia(firm_periods: int, i_firm: int) -> np.array:
-    """
-    Generates the vector of beta demands for a firm for a total of t periods
-    given by the parameter firm_periods
-
-    :param firm_periods:
-    :param i_firm:
-    :return:
-    """
-    betas = np.empty(firm_periods)
-    betas[0] = b0[i_firm]
-    old_beta = b0[i_firm]
-    for t_ in range(1, firm_periods):
-        new_beta = src.nb_clip(src.const.γ * old_beta + taste_shocks[t_, i_firm], -np.inf, -1.05)
-        betas[t_] = new_beta
-        old_beta = new_beta
-
-    return betas
-
-@njit()
 def generate_betas_inertia_Ξ(γ: int, taste_shocks_: np.array, b0_: np.array,
                              firm_periods: int, i_firm: int) -> np.array:
     """
@@ -114,18 +93,20 @@ scaler = MinMaxScaler()
 xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
 
 Nfirms = len(xs)
-# Just add zeroes. Makes sense for the gmm estimation
-prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
+
+#Draw shocks
+#################
+prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0) # Add zeroes for the gmm estimation
+taste_std_normal_shocks = np.random.normal(loc=0, scale=1, size=(max_t_periods_in_data, n_firms))
+b0_std_normal_shocks = np.random.normal(loc=0, scale=1, size=n_firms)
 
 
-#Combined parameter: θandΞ
-
-#Parameter limits that make sense for the product (Hand-picked this time)
+#Combined parameter: θandΞ. Product and demand side
 optimization_limits_θ = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
-
 optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5), (0.3, 0.8)]
 optimization_limits = optimization_limits_θ + optimization_limits_Ξ
 
+simul_repetitions = 15 #simulation repetitions
 
 def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
               prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
@@ -151,28 +132,31 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
     taste_shock_std = dmd_const_dict['taste_shock_std']
 
     # Redo taste_shocks and b0
-    taste_shocks_ = np.random.normal(loc=0, scale=taste_shock_std,
-                                     size=(max_t_periods_in_data, n_firms))
-    b0_ = np.clip(np.random.normal(loc=src.const.mature_beta,
-                                   scale=beta_shock_std, size=n_firms),
-                  -np.inf, -1.05)
+    taste_shocks_ = taste_std_normal_shocks*taste_shock_std
+    b0_ = np.clip(src.const.mature_beta + beta_shock_std*b0_std_normal_shocks, -np.inf, -1.05)
 
     df["betas_inertia"] = 0.
 
-    for i_firm, firm in enumerate(df.firm.unique()):
-        mask: pd.Series = (df.firm == firm)
-        t = mask.sum()
-        df.loc[mask, "betas_inertia"] = generate_betas_inertia_Ξ(γ, taste_shocks_,
-                                                                 b0_, t, i_firm)
+    exp_prices = []
+    #TODO: NOW definitely numba this loop!!!
+    for m in range(simul_repetitions):
+        for i_firm, firm in enumerate(df.firm.unique()):
+            mask: pd.Series = (df.firm == firm)
+            t = mask.sum()
+            df.loc[mask, "betas_inertia"] = generate_betas_inertia_Ξ(γ, taste_shocks_,
+                                                                     b0_, t, i_firm)
 
-    mean_std_observed_prices_clean, mean_std_expected_prices = src.get_intersection_of_observed_and_expected_prices(
-        mean_std_observed_prices, df, policyF, lambdas0, min_periods)
+        mean_std_observed_prices_clean, mean_std_expected_prices = src.get_intersection_of_observed_and_expected_prices(
+                                    mean_std_observed_prices, df, policyF, lambdas0, min_periods)
+        exp_prices.append(mean_std_expected_prices)
 
     try:
         assert len(mean_std_observed_prices_clean) == len(mean_std_expected_prices)
     except AssertionError as e:
         e.args += (len(mean_std_observed_prices_clean), len(mean_std_expected_prices))
         raise
+    exp_prices_df = pd.concat(exp_prices, axis=1)
+    mean_std_expected_prices = exp_prices_df.mean(axis=1)
 
     max_t = max_t_to_consider
     mean_std_observed_prices_clean = mean_std_observed_prices_clean.values[:max_t]
