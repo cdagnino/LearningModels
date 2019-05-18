@@ -7,16 +7,20 @@ from sklearn.preprocessing import MinMaxScaler
 import sys
 sys.path.append('../')
 import src
-from numba import njit
+from telepyth import TelepythClient
+import os
+tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 20 #100, 1.2 minutos por iteración
+maxiters = 60 #100, 1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 max_t_to_consider = 37
 use_logs_for_x = False
-print(f"Started at {time.asctime()}. Discount: {src.const.δ}. {maxiters} maxiters. Logs for x? {use_logs_for_x}")
+method = "differential evolution" #"differential evolution", "Nelder-Mead"
+print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
+          Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
 
 #Load policy and value function
@@ -56,28 +60,6 @@ n_firms = df.firm.nunique()
 max_t_periods_in_data = df.groupby('firm').log_dmd.count().max()
 
 
-@njit()
-def generate_betas_inertia_Ξ(γ: int, taste_shocks_: np.array, b0_: np.array,
-                             firm_periods: int, i_firm: int) -> np.array:
-    """
-    Generates the vector of beta demands for a firm for a total of t periods
-    given by the parameter firm_periods
-
-    :param firm_periods:
-    :param i_firm:
-    :return:
-    """
-    betas = np.empty(firm_periods)
-    betas[0] = b0_[i_firm]
-    old_beta = b0_[i_firm]
-    for t_ in range(1, firm_periods):
-        new_beta = src.nb_clip(γ * old_beta + taste_shocks_[t_, i_firm], -np.inf, -1.05)
-        betas[t_] = new_beta
-        old_beta = new_beta
-
-    return betas
-
-
 def param_array_to_dmd_constants(Ξ):
     return {'γ': Ξ[0],  'beta_shock_std': Ξ[1], 'taste_shock_std': Ξ[2]}
 
@@ -100,13 +82,8 @@ prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0) # Add zeroes for the gmm 
 taste_std_normal_shocks = np.random.normal(loc=0, scale=1, size=(max_t_periods_in_data, n_firms))
 b0_std_normal_shocks = np.random.normal(loc=0, scale=1, size=n_firms)
 
-
-#Combined parameter: θandΞ. Product and demand side
-optimization_limits_θ = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
-optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5), (0.3, 0.8)]
-optimization_limits = optimization_limits_θ + optimization_limits_Ξ
-
 simul_repetitions = 15 #simulation repetitions
+
 
 def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
               prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
@@ -143,7 +120,7 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
         for i_firm, firm in enumerate(df.firm.unique()):
             mask: pd.Series = (df.firm == firm)
             t = mask.sum()
-            df.loc[mask, "betas_inertia"] = generate_betas_inertia_Ξ(γ, taste_shocks_,
+            df.loc[mask, "betas_inertia"] = src.generate_betas_inertia_Ξ(γ, taste_shocks_,
                                                                      b0_, t, i_firm)
 
         mean_std_observed_prices_clean, mean_std_expected_prices = src.get_intersection_of_observed_and_expected_prices(
@@ -171,18 +148,31 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
     return g.T @ w @ g
 
 
-
-
 # Optimization
-######################
+##############################
+
 def error_w_data(θandΞ) -> float:
+    θandΞ = np.append(θandΞ, 0.6)
     return full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
                           prior_shocks=prior_shocks, df=df, min_periods=min_periods, w=None)
 
 
 start = time.time()
-optimi = opt.differential_evolution(error_w_data, optimization_limits,
-                                    maxiter=maxiters)
+if method is "differential evolution":
+    # Combined parameter: θandΞ. Product and demand side
+    optimization_limits_θ = [(-4, 0.05), (-5, 4), (-1.35, 0.2), (-1, 1)]
+    # optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5), (0.3, 0.8)]
+    optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5)]
+    optimization_limits = optimization_limits_θ + optimization_limits_Ξ
+
+    optimi = opt.differential_evolution(error_w_data, optimization_limits,
+                                        maxiter=maxiters)
+elif method is "Nelder-Mead":
+    x0 = np.array([-3.95, -3.62,  1.02,  0.28, 0.7, 0.3])
+    optimi = opt.minimize(error_w_data, x0,  method='Nelder-Mead',
+                          options={'maxiter': maxiters})
+else:
+    print(f"Method {method} isn't yet implemented")
 
 # Print results
 #################
@@ -193,3 +183,5 @@ print("Taken {0} minutes for {1} iterations. {2} per iteration".format(
 
 print("Success: ", optimi.success)
 print("Optimizados: ", np.round(optimi.x, 2))
+
+tp.send_text("procedimiento terminado. A revisar!")

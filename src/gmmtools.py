@@ -106,8 +106,36 @@ def generate_betas_inertia(time_periods: int) -> np.ndarray:
 
     return betas
 
+
+@njit()
+def generate_betas_inertia_Ξ(γ: int, taste_shocks_: np.array, b0_: np.array,
+                             firm_periods: int, i_firm: int) -> np.array:
+    """
+    Generates the vector of beta demands for a firm for a total of t periods
+    (given by the parameter firm_periods)
+    it takes demand side parameters γ, taste_shocks_ and initials betas b0_
+
+    :param γ: AR(1) parameter for demand
+    :param taste_shocks_: matrix of taste shocks. One for each firm, time_period
+    :param b0_: draws for demand elasticities at time 0
+    :param firm_periods:
+    :param i_firm: firm location in array
+    :return: array of betas for that a firm
+    """
+
+    betas = np.empty(firm_periods)
+    betas[0] = b0_[i_firm]
+    old_beta = b0_[i_firm]
+    for t_ in range(1, firm_periods):
+        new_beta = src.nb_clip(γ * old_beta + taste_shocks_[t_, i_firm], -np.inf, -1.05)
+        betas[t_] = new_beta
+        old_beta = new_beta
+
+    return betas
+
+
 # TODO: speed up this function. Can't jit it because policyF is a scipy LinearNDInterpolation f
-# But I could write it with explicit parameters and jit!
+# But I could write it with explicit parameters (some sort of Interpolation?) and jit!
 def generate_pricing_decisions(policyF, lambda0: np.ndarray,
                                demand_obs: np.ndarray, dmd_shocks: np.ndarray,
                                betas_inertia: np.ndarray, use_real_dmd=False,
