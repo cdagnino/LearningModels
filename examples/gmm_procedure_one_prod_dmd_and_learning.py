@@ -9,16 +9,17 @@ sys.path.append('../')
 import src
 from telepyth import TelepythClient
 import os
+import gc
 tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 60 #100, 1.2 minutos por iteración
+maxiters = 20 #100, 8.6 minutos por iteración para differential_evolution
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 max_t_to_consider = 37
 use_logs_for_x = False
-method = "differential evolution" #"differential evolution", "Nelder-Mead"
+method = "Nelder-Mead" #"differential evolution", "Nelder-Mead"
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
           Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
@@ -145,14 +146,16 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
         w = np.identity(t)
 
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices_clean)
+    del df, mean_std_expected_prices, mean_std_observed_prices_clean, exp_prices_df
+    gc.collect()
     return g.T @ w @ g
 
 
 # Optimization
 ##############################
 
-def error_w_data(θandΞ) -> float:
-    θandΞ = np.append(θandΞ, 0.6)
+def error_w_data(θandΞres) -> float:
+    θandΞ = np.append(θandΞres, 0.6)
     return full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
                           prior_shocks=prior_shocks, df=df, min_periods=min_periods, w=None)
 
@@ -166,11 +169,12 @@ if method is "differential evolution":
     optimization_limits = optimization_limits_θ + optimization_limits_Ξ
 
     optimi = opt.differential_evolution(error_w_data, optimization_limits,
-                                        maxiter=maxiters)
+                                        maxiter=maxiters, disp=True)
 elif method is "Nelder-Mead":
-    x0 = np.array([-3.95, -3.62,  1.02,  0.28, 0.7, 0.3])
+    #x0 = np.array([-3.95, -3.62,  1.02,  0.28, 0.7, 0.3])
+    x0 = np.array([-2., -3.3, 1.1, 0.25, 0.65, 0.21])
     optimi = opt.minimize(error_w_data, x0,  method='Nelder-Mead',
-                          options={'maxiter': maxiters})
+                          options={'maxiter': maxiters, 'disp': True})
 else:
     print(f"Method {method} isn't yet implemented")
 
