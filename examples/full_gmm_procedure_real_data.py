@@ -11,7 +11,7 @@ from numba import njit
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 2 #100, 1.2 minutos por iteración
+maxiters = 100 #100, 1.2 minutos por iteración
 time_periods = 40 #Maximum spell_t to consider
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
@@ -127,7 +127,7 @@ def error_w_data(θ) -> float:
 
 start = time.time()
 optimi = opt.differential_evolution(error_w_data, optimization_limits,
-                                    maxiter=maxiters)
+                                    maxiter=maxiters, disp=True)
 
 # Print results
 #################

@@ -14,12 +14,13 @@ tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 20 #100, 8.6 minutos por iteración para differential_evolution
+maxiters = 100 #100, 8.6 minutos por iteración para differential_evolution
 time_periods = 40 #Maximum spell_t to consider
-min_periods = 3 #Min window period for standard deviation
 max_t_to_consider = 37
+min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
-method = "Nelder-Mead" #"differential evolution", "Nelder-Mead"
+simul_repetitions = 1 #simulation repetitions
+method = "differential evolution" #"differential evolution", "Nelder-Mead"
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
           Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
@@ -83,7 +84,6 @@ prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0) # Add zeroes for the gmm 
 taste_std_normal_shocks = np.random.normal(loc=0, scale=1, size=(max_t_periods_in_data, n_firms))
 b0_std_normal_shocks = np.random.normal(loc=0, scale=1, size=n_firms)
 
-simul_repetitions = 15 #simulation repetitions
 
 
 def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
@@ -146,8 +146,10 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
         w = np.identity(t)
 
     g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices_clean)
-    del df, mean_std_expected_prices, mean_std_observed_prices_clean, exp_prices_df
+    del df, exp_prices_df
+    #del mean_std_expected_prices, mean_std_observed_prices_clean
     gc.collect()
+    #print(θandΞ, g.T @ w @ g)
     return g.T @ w @ g
 
 
@@ -155,7 +157,7 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
 ##############################
 
 def error_w_data(θandΞres) -> float:
-    θandΞ = np.append(θandΞres, 0.6)
+    θandΞ = np.append(θandΞres, [0.8, 0.3, 0.7])
     return full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
                           prior_shocks=prior_shocks, df=df, min_periods=min_periods, w=None)
 
@@ -163,9 +165,9 @@ def error_w_data(θandΞres) -> float:
 start = time.time()
 if method is "differential evolution":
     # Combined parameter: θandΞ. Product and demand side
-    optimization_limits_θ = [(-4, 0.05), (-5, 4), (-1.35, 0.2), (-1, 1)]
+    optimization_limits_θ = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
     # optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5), (0.3, 0.8)]
-    optimization_limits_Ξ = [(0.5, 0.9), (0.1, 0.5)]
+    optimization_limits_Ξ = [] #[(0.5, 0.9), (0.1, 0.5)]
     optimization_limits = optimization_limits_θ + optimization_limits_Ξ
 
     optimi = opt.differential_evolution(error_w_data, optimization_limits,
