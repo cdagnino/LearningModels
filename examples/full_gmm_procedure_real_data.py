@@ -17,8 +17,7 @@ min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
 print(f"Started at {time.asctime()}. Discount: {src.const.δ}. {maxiters} maxiters. Logs for x? {use_logs_for_x}")
 
-#Parameter limits that make sense for the product (Hand-picked this time)
-optimization_limits = [(-4, 0.05), (-5, 4), (1.35, 0.2), (-1, 1)]
+
 
 
 #Load policy and value function
@@ -63,6 +62,23 @@ b0 = np.clip(np.random.normal(loc=src.const.mature_beta, scale=src.const.beta_sh
              -np.inf, -1.05)
 
 
+#mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
+mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
+
+#Mix Max scaling for xs
+if use_logs_for_x:
+    xs = np.log(df.groupby('firm').xs.first().values + 0.1)
+else:
+    xs = (df.groupby('firm').xs.first().values + 0.1)
+scaler = MinMaxScaler()
+xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
+
+Nfirms = len(xs)
+# Just add zeroes. Makes sense for the gmm estimation
+prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
+
+
+# Betas inertia procedure
 @njit()
 def new_generate_betas_inertia(firm_periods: int, i_firm: int) -> np.array:
     """
@@ -83,9 +99,7 @@ def new_generate_betas_inertia(firm_periods: int, i_firm: int) -> np.array:
 
     return betas
 
-
 df["betas_inertia"] = 0.
-
 
 #Old procedure
 #for firm in df.firm.unique():
@@ -101,24 +115,13 @@ for i_firm, firm in enumerate(df.firm.unique()):
     df.loc[mask, "betas_inertia"] = new_generate_betas_inertia(t, i_firm)
 
 
-#mean_std_observed_prices = df.groupby('t').std_dev_prices.mean()[min_periods:]
-mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
-
-#Mix Max scaling for xs
-if use_logs_for_x:
-    xs = np.log(df.groupby('firm').xs.first().values + 0.1)
-else:
-    xs = (df.groupby('firm').xs.first().values + 0.1)
-scaler = MinMaxScaler()
-xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
-
-Nfirms = len(xs)
-# Just add zeroes. Makes sense for the gmm estimation
-prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0)
-
 
 # Optimization
 ######################
+
+#Parameter limits that make sense for the product (Hand-picked this time)
+optimization_limits = [(-4, 0.05), (-5, 4), (0.2, 1.35), (-1, 1)]
+
 def error_w_data(θ) -> float:
     return src.gmm_error(θ, policyF, xs,
                          mean_std_observed_prices=mean_std_observed_prices, df=df,
