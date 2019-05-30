@@ -3,8 +3,10 @@ from numba import njit
 import pandas as pd
 import src
 from scipy import optimize
-from .from_parameters_to_lambdas import logit, force_sum_to_1, reparam_lambdas, h_and_exp_betas_eqns, jac
-
+from scipy import optimize as opt
+from scipy.stats import truncnorm
+from .from_parameters_to_lambdas import force_sum_to_1, logit, reparam_lambdas, h_and_exp_betas_eqns, jac
+from typing import Tuple, List
 
 def gen_prior_shocks(nfirms, σerror=0.005):
     return np.random.normal(loc=0., scale=σerror, size=nfirms)
@@ -281,7 +283,51 @@ def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_pri
     assert t > 0
     if w is None:
         w = np.identity(t)
-    #TODO: simplify this. Pass to values,  no need for np.newaxis
-    g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
+    #g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices)[:, np.newaxis]
+    #return (g.T @ w @ g)[0, 0]
+    g = (1 / t) * (mean_std_expected_prices.values - mean_std_observed_prices.values)
+    return g.T @ w @ g
 
-    return (g.T @ w @ g)[0, 0]
+
+def mixed_optimization(error_f, optimization_limits: List[Tuple[float, float]], diff_evol_iterations=15,
+                       nelder_mead_iters=30, n_of_nelder_mead_tries=10, disp=True):
+    """
+    Starts with differential evolution and then does Nelder-Mead
+    :param optimization_limits:
+    :return:
+    """
+    # Run differential evolution for a few iterations
+    successes = []
+    f_and_x = np.empty((n_of_nelder_mead_tries + 2, len(optimization_limits) + 1))
+    # Run differential evolution for a few iterations
+    diff_evol_opti = opt.differential_evolution(error_f, optimization_limits,
+                                                maxiter=diff_evol_iterations, disp=disp)
+    successes.append(diff_evol_opti.success)
+    f_and_x[0, :] = np.array([diff_evol_opti.fun] + list(diff_evol_opti.x))
+
+    # One Nelder-Mead from diff_evol end
+    optimi = opt.minimize(error_f, x0=diff_evol_opti.x, method='Nelder-Mead',
+                          options={'maxiter': nelder_mead_iters, 'disp': disp})
+    successes.append(optimi.success)
+    f_and_x[1, :] = np.array([optimi.fun] + list(optimi.x))
+
+    # TODO parallelize Nelder-Mead
+    # K random points
+    k_random_points = np.empty((n_of_nelder_mead_tries, len(optimization_limits)))
+    for x_arg_n in range(len(optimization_limits)):
+        this_opti_limits = optimization_limits[x_arg_n]
+        min_, max_ = this_opti_limits[0], this_opti_limits[1]
+        loc = (max_ - min_) / 2
+        scale = (max_ - min_) / 4
+        k_random_points[:, x_arg_n] = truncnorm.rvs(min_, max_, loc=loc, scale=scale, size=n_of_nelder_mead_tries)
+
+    for nelder_try in range(n_of_nelder_mead_tries):
+        print(f"Doing try Nelder try {nelder_try} of {n_of_nelder_mead_tries}")
+        optimi = opt.minimize(error_f, k_random_points[nelder_try, :], method='Nelder-Mead',
+                              options={'maxiter': nelder_mead_iters, 'disp': disp})
+        successes.append(optimi.success)
+        f_and_x[nelder_try + 2, :] = np.array([optimi.fun] + list(optimi.x))
+
+    final_success = max(successes)
+    return final_success, f_and_x
+

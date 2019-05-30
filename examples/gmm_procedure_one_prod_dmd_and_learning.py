@@ -20,8 +20,8 @@ time_periods = 40 #Maximum spell_t to consider
 max_t_to_consider = 37
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
-simul_repetitions = 10 #simulation repetitions
-method = "differential evolution" #"differential evolution", "Nelder-Mead"
+simul_repetitions = 1 #simulation repetitions
+method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
           Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
@@ -187,7 +187,8 @@ for i, firm_i in enumerate(all_firms):
 def error_w_data(θandΞres) -> float:
     #θandΞ = np.append(θandΞres, [0.8, 0.3, 0.7])
     #Only index 0 and 2  full_optθ = [-4.   -3.38  1.1  -0.82]
-    θandΞ = np.array([θandΞres[0], 0., θandΞres[1], 0., 0.8, 0.3, 0.7])
+    #θandΞ = np.array([θandΞres[0], 0., θandΞres[1], 0., 0.8, 0.3, 0.7])
+    θandΞ = np.array([θandΞres[0], 0., θandΞres[1], 0., 0.8, θandΞres[2], θandΞres[3]])
     return full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
                           prior_shocks=prior_shocks, df=df, len_df=len(df), firm_lengths=firm_lengths_,
                           min_periods=min_periods, w=None)
@@ -204,13 +205,28 @@ if method is "differential evolution":
 
     optimi = opt.differential_evolution(error_w_data, optimization_limits,
                                         maxiter=maxiters, disp=True)
+    final_success = optimi.sucess
+    best_f = optimi.fun
+    best_x = optimi.x
 elif method is "Nelder-Mead":
     #x0 = np.array([-3.95, -3.62,  1.02,  0.28, 0.7, 0.3])
-    x0 = np.array([-2., -3.3, 1.1, 0.25, 0.65, 0.21])
+    #x0 = np.array([-2., -3.3, 1.1, 0.25, 0.65, 0.21])
+    #x0 = np.array([-4.5, 0.8])
+    x0 = np.array([-4.7, 1.1])
     optimi = opt.minimize(error_w_data, x0,  method='Nelder-Mead',
                           options={'maxiter': maxiters, 'disp': True})
+    final_success = optimi.sucess
+    best_f = optimi.fun
+    best_x = optimi.x
+elif method is "mixed":
+    optimization_limits = [(-5., 1.), (0.2, 1.35), (0.05, 0.5), (0.2, 0.8)]
+    final_success, f_and_x = src.mixed_optimization(error_w_data, optimization_limits, diff_evol_iterations=15,
+                             nelder_mead_iters=100, n_of_nelder_mead_tries=15, disp=True)
+    winning_one = np.argmin(f_and_x[:, 0])
+    best_f = f_and_x[winning_one][0]
+    best_x = f_and_x[winning_one][1:]
 else:
-    print(f"Method {method} isn't yet implemented")
+    raise ValueError(f"Method {method} isn't yet implemented")
 
 # Print results
 #################
@@ -219,7 +235,8 @@ time_taken = time.time()/60 - start/60
 print("Taken {0} minutes for {1} iterations. {2} per iteration".format(
       time_taken, maxiters, time_taken/maxiters))
 
-print("Success: ", optimi.success)
-print("Optimizados: ", np.round(optimi.x, 2))
+print("Success: ", final_success)
+print("Optimizados: ", np.round(best_x, 2))
+print("Function value: ", best_f)
 
 tp.send_text("procedimiento terminado. A revisar!")
