@@ -28,6 +28,7 @@ def jac_(x):
 
 
 #@njit()
+#TODO: try to njit this
 def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5])):
     """
     Generates a lambda0 vector from the theta vector and x
@@ -287,6 +288,92 @@ def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_pri
     #return (g.T @ w @ g)[0, 0]
     g = (1 / t) * (mean_std_expected_prices.values - mean_std_observed_prices.values)
     return g.T @ w @ g
+
+
+# Full GMM: learning and demand parameters
+##########################################
+@njit()
+def inner_loop_with_numba_unbalanced(simul_repetitions_, firm_lengths: np.array, n_firms: int, len_df: int, γ,
+                                     taste_shocks, b0):
+    betas_inertia_by_m = np.empty((len_df, simul_repetitions_))
+    for m in range(simul_repetitions_):
+        for i_firm in range(n_firms):
+            betas_inertia_by_m[firm_lengths[i_firm]:firm_lengths[i_firm + 1], m] = \
+                (src.generate_betas_inertia_Ξ(γ, taste_shocks, b0,
+                                              firm_lengths[i_firm + 1] - firm_lengths[i_firm],
+                                              i_firm))
+    return betas_inertia_by_m
+
+
+def param_array_to_dmd_constants(Ξ):
+    return {'γ': Ξ[0],  'beta_shock_std': Ξ[1], 'taste_shock_std': Ξ[2]}
+
+
+def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
+                   prior_shocks: np.array, df: pd.DataFrame, len_df, firm_lengths,
+                   simul_repetitions: int, taste_std_normal_shocks: np.array,
+                   b0_std_normal_shocks: np.array, n_firms: int, max_t_to_consider: int,
+                   min_periods: int=3, w=None) -> float:
+    """
+    Computes the gmm error of the different between the observed moments and
+    the moments predicted by the model + θ
+
+    Moments: average (over firms) standard deviation for each time period
+
+    xs: characteristics of firms
+    mean_std_observed_prices: mean (over firms) of standard deviation per t
+    w: weighting matrix for GMM objective
+    """
+    np.random.seed(383461)
+
+    θ = θandΞ[:4]
+    Ξ = θandΞ[4::]
+
+    lambdas0 = src.from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
+
+    dmd_const_dict = param_array_to_dmd_constants(Ξ)
+    γ, beta_shock_std = dmd_const_dict['γ'], dmd_const_dict['beta_shock_std']
+    taste_shock_std = dmd_const_dict['taste_shock_std']
+
+    # Redo taste_shocks and b0
+    taste_shocks_ = taste_std_normal_shocks*taste_shock_std
+    b0_ = np.clip(src.const.mature_beta + beta_shock_std*b0_std_normal_shocks, -np.inf, -1.05)
+
+
+
+    exp_prices = []
+    m_betas_inertia = inner_loop_with_numba_unbalanced(simul_repetitions, firm_lengths,
+                                                      n_firms, len_df, γ,
+                                                      taste_shocks_, b0_)
+
+    for m in range(simul_repetitions):
+        df['betas_inertia'] = m_betas_inertia[:, m]
+        mean_std_observed_prices_clean, mean_std_expected_prices = src.get_intersection_of_observed_and_expected_prices(
+                                    mean_std_observed_prices, df, policyF, lambdas0, min_periods)
+        exp_prices.append(mean_std_expected_prices)
+
+    try:
+        assert len(mean_std_observed_prices_clean) == len(mean_std_expected_prices)
+    except AssertionError as e:
+        e.args += (len(mean_std_observed_prices_clean), len(mean_std_expected_prices))
+        raise
+    exp_prices_df = pd.concat(exp_prices, axis=1)
+    mean_std_expected_prices = exp_prices_df.mean(axis=1)
+
+    max_t = max_t_to_consider
+    mean_std_observed_prices_clean = mean_std_observed_prices_clean.values[:max_t]
+    mean_std_expected_prices = mean_std_expected_prices.values[:max_t]
+
+    t = len(mean_std_expected_prices)
+    assert t > 0
+    if w is None:
+        w = np.identity(t)
+
+    g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices_clean)
+    del df, exp_prices_df
+    #gc.collect()
+    return g.T @ w @ g
+
 
 
 def mixed_optimization(error_f, optimization_limits: List[Tuple[float, float]], diff_evol_iterations=15,

@@ -14,7 +14,10 @@ from numba import njit
 tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
+
+
 #GMM parameters
+################
 maxiters = 100 #100, 8.6 minutos por iteración para differential_evolution
 time_periods = 40 #Maximum spell_t to consider
 max_t_to_consider = 37
@@ -22,6 +25,11 @@ min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
 simul_repetitions = 1 #simulation repetitions
 method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
+
+
+
+
+
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
           Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
@@ -63,10 +71,6 @@ n_firms = df.firm.nunique()
 max_t_periods_in_data = df.groupby('firm').log_dmd.count().max()
 
 
-def param_array_to_dmd_constants(Ξ):
-    return {'γ': Ξ[0],  'beta_shock_std': Ξ[1], 'taste_shock_std': Ξ[2]}
-
-
 mean_std_observed_prices = df.groupby('t').rolling_std_upc.mean()[min_periods:]
 
 #Mix Max scaling for xs
@@ -80,98 +84,11 @@ xs = scaler.fit_transform(xs.reshape(-1, 1)).flatten()
 Nfirms = len(xs)
 
 
-@njit()
-def inner_loop_with_numba_unbalanced(simul_repetitions_, firm_lengths: np.array, n_firms: int, len_df: int, γ,
-                                     taste_shocks, b0):
-    betas_inertia_by_m = np.empty((len_df, simul_repetitions_))
-    for m in range(simul_repetitions):
-        for i_firm in range(n_firms):
-            betas_inertia_by_m[firm_lengths[i_firm]:firm_lengths[i_firm + 1], m] = \
-                (src.generate_betas_inertia_Ξ(γ, taste_shocks, b0,
-                                              firm_lengths[i_firm + 1] - firm_lengths[i_firm],
-                                              i_firm))
-    return betas_inertia_by_m
-
-
 #Draw shocks
 #################
 prior_shocks = src.gen_prior_shocks(Nfirms, σerror=0) # Add zeroes for the gmm estimation
 taste_std_normal_shocks = np.random.normal(loc=0, scale=1, size=(max_t_periods_in_data, n_firms))
 b0_std_normal_shocks = np.random.normal(loc=0, scale=1, size=n_firms)
-
-
-
-def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
-                   prior_shocks: np.array, df: pd.DataFrame, len_df, firm_lengths,
-                   min_periods: int = 3, w=None) -> float:
-    """
-    Computes the gmm error of the different between the observed moments and
-    the moments predicted by the model + θ
-
-    Moments: average (over firms) standard deviation for each time period
-
-    xs: characteristics of firms
-    mean_std_observed_prices: mean (over firms) of standard deviation per t
-    w: weighting matrix for GMM objective
-    """
-    np.random.seed(383461)
-
-    θ = θandΞ[:4]
-    Ξ = θandΞ[4::]
-
-    lambdas0 = src.from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
-
-    dmd_const_dict = param_array_to_dmd_constants(Ξ)
-    γ, beta_shock_std = dmd_const_dict['γ'], dmd_const_dict['beta_shock_std']
-    taste_shock_std = dmd_const_dict['taste_shock_std']
-
-    # Redo taste_shocks and b0
-    taste_shocks_ = taste_std_normal_shocks*taste_shock_std
-    b0_ = np.clip(src.const.mature_beta + beta_shock_std*b0_std_normal_shocks, -np.inf, -1.05)
-
-
-
-    exp_prices = []
-    #TODO: NOW definitely numba this loop!!!
-    #df["betas_inertia"] = 0.
-    #for m in range(simul_repetitions):
-    #    for i_firm, firm in enumerate(df.firm.unique()):
-    #        mask: pd.Series = (df.firm == firm)
-    #        t = mask.sum()
-    #        df.loc[mask, "betas_inertia"] = src.generate_betas_inertia_Ξ(γ, taste_shocks_,
-    #                                                                 b0_, t, i_firm)
-    m_betas_inertia = inner_loop_with_numba_unbalanced(simul_repetitions, firm_lengths,
-                                                      n_firms, len_df, γ,
-                                                      taste_shocks_, b0_)
-
-    for m in range(simul_repetitions):
-        df['betas_inertia'] = m_betas_inertia[:, m]
-        mean_std_observed_prices_clean, mean_std_expected_prices = src.get_intersection_of_observed_and_expected_prices(
-                                    mean_std_observed_prices, df, policyF, lambdas0, min_periods)
-        exp_prices.append(mean_std_expected_prices)
-
-    try:
-        assert len(mean_std_observed_prices_clean) == len(mean_std_expected_prices)
-    except AssertionError as e:
-        e.args += (len(mean_std_observed_prices_clean), len(mean_std_expected_prices))
-        raise
-    exp_prices_df = pd.concat(exp_prices, axis=1)
-    mean_std_expected_prices = exp_prices_df.mean(axis=1)
-
-    max_t = max_t_to_consider
-    mean_std_observed_prices_clean = mean_std_observed_prices_clean.values[:max_t]
-    mean_std_expected_prices = mean_std_expected_prices.values[:max_t]
-
-    t = len(mean_std_expected_prices)
-    assert t > 0
-    if w is None:
-        w = np.identity(t)
-
-    g = (1 / t) * (mean_std_expected_prices - mean_std_observed_prices_clean)
-    del df, exp_prices_df
-    #del mean_std_expected_prices, mean_std_observed_prices_clean
-    gc.collect()
-    return g.T @ w @ g
 
 
 # Optimization
@@ -189,9 +106,15 @@ def error_w_data(θandΞres) -> float:
     #Only index 0 and 2  full_optθ = [-4.   -3.38  1.1  -0.82]
     #θandΞ = np.array([θandΞres[0], 0., θandΞres[1], 0., 0.8, 0.3, 0.7])
     θandΞ = np.array([θandΞres[0], 0., θandΞres[1], 0., 0.8, θandΞres[2], θandΞres[3]])
-    return full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
-                          prior_shocks=prior_shocks, df=df, len_df=len(df), firm_lengths=firm_lengths_,
-                          min_periods=min_periods, w=None)
+    return src.full_gmm_error(θandΞ, policyF, xs, mean_std_observed_prices=mean_std_observed_prices,
+                              prior_shocks=prior_shocks, df=df, len_df=len(df), firm_lengths=firm_lengths_,
+                              simul_repetitions=simul_repetitions, taste_std_normal_shocks=taste_std_normal_shocks,
+                              b0_std_normal_shocks=b0_std_normal_shocks,
+                              n_firms=n_firms, max_t_to_consider=max_t_to_consider,
+                              min_periods=min_periods, w=None)
+
+
+
 
 
 start = time.time()
@@ -220,8 +143,10 @@ elif method is "Nelder-Mead":
     best_x = optimi.x
 elif method is "mixed":
     optimization_limits = [(-5., 1.), (0.2, 1.35), (0.05, 0.5), (0.2, 0.8)]
-    final_success, f_and_x = src.mixed_optimization(error_w_data, optimization_limits, diff_evol_iterations=15,
-                             nelder_mead_iters=100, n_of_nelder_mead_tries=15, disp=True)
+    final_success, f_and_x = src.mixed_optimization(error_w_data, optimization_limits,
+                                                    diff_evol_iterations=2,
+                             nelder_mead_iters=2, n_of_nelder_mead_tries=1, disp=True)
+    #evol_iters=15, nelder_iters=100, nelder_tries=15
     winning_one = np.argmin(f_and_x[:, 0])
     best_f = f_and_x[winning_one][0]
     best_x = f_and_x[winning_one][1:]
@@ -239,4 +164,11 @@ print("Success: ", final_success)
 print("Optimizados: ", np.round(best_x, 2))
 print("Function value: ", best_f)
 
-tp.send_text("procedimiento terminado. A revisar!")
+tp.send_text(f"""
+procedimiento terminado. A revisar!
+Success: {final_success}
+Optimizados: {np.round(best_x, 2)}
+Function Value: {best_f}
+Time taken (in minutes): {time_taken}
+""")
+

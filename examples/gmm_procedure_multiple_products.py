@@ -7,15 +7,23 @@ from sklearn.preprocessing import MinMaxScaler
 import sys
 sys.path.append('../')
 import src
+from telepyth import TelepythClient
+import os
+import gc
 from numba import njit
+tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
 #GMM parameters
-maxiters = 2 #100, 1.2 minutos por iteración
+maxiters = 100 #100, 8.6 minutos por iteración para differential_evolution
 time_periods = 40 #Maximum spell_t to consider
+max_t_to_consider = 37
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
-print(f"Started at {time.asctime()}. Discount: {src.const.δ}. {maxiters} maxiters. Logs for x? {use_logs_for_x}")
+simul_repetitions = 5 #simulation repetitions
+method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
+print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
+          Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
 
 
 ##########################################################
