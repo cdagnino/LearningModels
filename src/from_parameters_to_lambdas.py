@@ -5,14 +5,11 @@ from scipy.special import expit
 from numba import njit
 
 
-#@njit()
-#def my_entropy(p):
-#    eps = 10e-9
-#    return -np.sum(p+eps * np.log(p+eps))
 def my_entropy(p):
     return entropy(p)
 
 
+@njit()
 def force_sum_to_1(orig_lambdas):
     """
     Forces lambdas to sum to 1
@@ -21,10 +18,10 @@ def force_sum_to_1(orig_lambdas):
     sum_lambdas = orig_lambdas.sum()
     if sum_lambdas > 1.:
         orig_lambdas /= sum_lambdas
-        # TODO: think if this is what I really want
-        return np.hstack([orig_lambdas, 0.])
+        # TODO: think if this is what I want: might make third lambda 0 too much
+        return np.concatenate((orig_lambdas, np.array([0.])))
     else:
-        return np.hstack([orig_lambdas, 1 - orig_lambdas.sum()])
+        return np.concatenate((orig_lambdas, np.array([sum_lambdas])))
 
 
 def logit(p):
@@ -36,6 +33,7 @@ def reparam_lambdas(x):
     return expit(x)
 
 
+#@njit()
 def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H, w=np.array([[1., 0.], [0., 1./4.]])):
     """
     orig_lambdas: original lambda tries (not summing to zero, not within [0, 1])
