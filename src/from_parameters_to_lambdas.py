@@ -1,22 +1,27 @@
 import src
 import numpy as np
 from scipy.stats import entropy
+from scipy.special import expit
 from numba import njit
 
 
-#@njit()
-#def my_entropy(p):
-#    eps = 10e-9
-#    return -np.sum(p+eps * np.log(p+eps))
 def my_entropy(p):
     return entropy(p)
 
-def force_sum_to_1(x):
+
+@njit()
+def force_sum_to_1(orig_lambdas):
     """
     Forces lambdas to sum to 1
     (although last element might be negative)
     """
-    return np.hstack([x, 1-x.sum()])
+    sum_lambdas = orig_lambdas.sum()
+    if sum_lambdas > 1.:
+        orig_lambdas /= sum_lambdas
+        # TODO: think if this is what I want: might make third lambda 0 too much
+        return np.concatenate((orig_lambdas, np.array([0.])))
+    else:
+        return np.concatenate((orig_lambdas, np.array([sum_lambdas])))
 
 
 def logit(p):
@@ -25,21 +30,22 @@ def logit(p):
 
 def reparam_lambdas(x):
     """ inverse logit. Forces the lambdas to be within 0 and 1"""
-    return np.e**x / (1 + np.e**x)
+    return expit(x)
 
 
-def fun(x, βs, Eβ, H):
+#@njit()
+def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H, w=np.array([[1., 0.], [0., 1./4.]])):
     """
-    x: deep parameters
+    orig_lambdas: original lambda tries (not summing to zero, not within [0, 1])
     Eβ, H: the objectives
     βs: fixed constant of the model
     """
-    lambdas = force_sum_to_1(reparam_lambdas(x))
-    return [my_entropy(lambdas) - H,
-            np.dot(βs, lambdas) - Eβ]
+    lambdas = force_sum_to_1(src.reparam_lambdas(orig_lambdas))
+    g = np.array([entropy(lambdas) - H, np.dot(βs, lambdas) - Eβ])
+    return g.T @ w @ g
 
 
-#TODO: make this general, not limited to dim(x)=3
+#Not relevant anymore (minimize is using a derivative free method)
 def jac(x, βs):
     """
     Jacobian for reparametrization of lambdas.
