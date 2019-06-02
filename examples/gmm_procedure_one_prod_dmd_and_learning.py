@@ -9,8 +9,6 @@ sys.path.append('../')
 import src
 from telepyth import TelepythClient
 import os
-import gc
-from numba import njit
 tp = TelepythClient(token=os.environ['telepyth_token'])
 
 np.random.seed(383461)
@@ -26,8 +24,10 @@ use_logs_for_x = False
 simul_repetitions = 1 #simulation repetitions
 method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
 
-
-
+# Mixed mthod params
+diff_evol_iterations = 2 #15
+nelder_mead_iters = 2 #100
+n_of_nelder_mead_tries=1 #15
 
 
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
@@ -144,9 +144,11 @@ elif method is "Nelder-Mead":
 elif method is "mixed":
     optimization_limits = [(-5., 1.), (0.2, 1.35), (0.05, 0.5), (0.2, 0.8)]
     final_success, f_and_x = src.mixed_optimization(error_w_data, optimization_limits,
-                                                    diff_evol_iterations=2,
-                             nelder_mead_iters=2, n_of_nelder_mead_tries=1, disp=True)
-    #evol_iters=15, nelder_iters=100, nelder_tries=15
+                                                    diff_evol_iterations=diff_evol_iterations,
+                                                    nelder_mead_iters=nelder_mead_iters,
+                                                    n_of_nelder_mead_tries=n_of_nelder_mead_tries,
+                                                    disp=True)
+
     winning_one = np.argmin(f_and_x[:, 0])
     best_f = f_and_x[winning_one][0]
     best_x = f_and_x[winning_one][1:]

@@ -28,9 +28,10 @@ def logit(p):
     return np.log(p / (1 - p))
 
 
+@njit()
 def reparam_lambdas(x):
-    """ inverse logit. Forces the lambdas to be within 0 and 1"""
-    return expit(x)
+    """use softmax"""
+    return np.exp(x) / np.sum(np.exp(x))
 
 
 #@njit()
@@ -40,7 +41,7 @@ def h_and_exp_betas_eqns(orig_lambdas, βs, Eβ, H, w=np.array([[1., 0.], [0., 1
     Eβ, H: the objectives
     βs: fixed constant of the model
     """
-    lambdas = force_sum_to_1(src.reparam_lambdas(orig_lambdas))
+    lambdas = src.reparam_lambdas(orig_lambdas)
     g = np.array([entropy(lambdas) - H, np.dot(βs, lambdas) - Eβ])
     return g.T @ w @ g
 

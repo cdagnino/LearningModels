@@ -29,7 +29,8 @@ def jac_(x):
 
 #@njit()
 #TODO: try to njit this
-def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5])):
+#OR: precompute lambdas values for all relevant H and EB values
+def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5, 0.4])):
     """
     Generates a lambda0 vector from the theta vector and x
     It passes through the entropy and expected value of betas (H, EB)
@@ -48,11 +49,11 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0
     #Numerical procedure to get lambda vector from H, Eβ
     #sol = optimize.root(fun_, logit(starting_values), jac=jac_)
     sol = optimize.minimize(fun_, x0=src.logit(starting_values), method='Powell')
-    lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+    lambdas_sol = reparam_lambdas(sol.x)
     if not sol.success:
         # Use Nelder-Mead from different starting_value
-        sol = optimize.minimize(fun_, x0=src.logit(np.array([0.1, 0.08])), method='Nelder-Mead')
-        lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+        sol = optimize.minimize(fun_, x0=src.logit(np.array([0.6, 0.1, 0.3])), method='Nelder-Mead')
+        lambdas_sol = reparam_lambdas(sol.x)
         if not sol.success:
             print(f"Theta to lambda0 didn't converge", sol.x, lambdas_sol)
 
