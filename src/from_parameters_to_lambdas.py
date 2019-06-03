@@ -28,10 +28,12 @@ def logit(p):
     return np.log(p / (1 - p))
 
 
-@njit()
 def reparam_lambdas(x):
     """use softmax"""
-    return np.exp(x) / np.sum(np.exp(x))
+    #return np.exp(x) / np.sum(np.exp(x))
+    #Numerically more stable version
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
 
 
 #@njit()

@@ -18,16 +18,16 @@ np.random.seed(383461)
 ################
 maxiters = 100 #100, 8.6 minutos por iteración para differential_evolution
 time_periods = 40 #Maximum spell_t to consider
-max_t_to_consider = 37
+max_t_to_consider = 33
 min_periods = 3 #Min window period for standard deviation
 use_logs_for_x = False
-simul_repetitions = 1 #simulation repetitions
+simul_repetitions = 5 #simulation repetitions
 method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
 
 # Mixed mthod params
-diff_evol_iterations = 2 #15
-nelder_mead_iters = 2 #100
-n_of_nelder_mead_tries=1 #15
+diff_evol_iterations = 10 #15
+nelder_mead_iters = 100 #100
+n_of_nelder_mead_tries= 8 #15
 
 
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
