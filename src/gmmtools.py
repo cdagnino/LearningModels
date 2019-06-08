@@ -5,7 +5,7 @@ import src
 from scipy import optimize
 from scipy import optimize as opt
 from scipy.stats import truncnorm
-from .from_parameters_to_lambdas import force_sum_to_1, logit, reparam_lambdas, h_and_exp_betas_eqns, jac
+from .from_parameters_to_lambdas import reparam_lambdas, h_and_exp_betas_eqns, jac, input_heb_to_lambda_con_norm
 from typing import Tuple, List
 
 def gen_prior_shocks(nfirms, σerror=0.005):
@@ -30,7 +30,7 @@ def jac_(x):
 #@njit()
 #TODO: try to njit this
 #OR: precompute lambdas values for all relevant H and EB values
-def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5, 0.4])):
+def orig_from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0.1, 0.5, 0.4])):
     """
     Generates a lambda0 vector from the theta vector and x
     It passes through the entropy and expected value of betas (H, EB)
@@ -60,7 +60,7 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0
     return lambdas_sol
 
 
-def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
+def orig_from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
     nfirms = len(xs)
     lambdas0 = np.empty((nfirms, 3))
     for firm_i in range(nfirms):
@@ -68,6 +68,56 @@ def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
                                                        prior_shocks[firm_i])
 
     return lambdas0
+
+
+def from_theta_to_lambda0(x, θ, prior_shock: float, lambda_values_matrix,
+                          h_candidates, eb_candidates, h_n_digits_precision,
+                          eb_n_digits_precision, h_dict, e_dict):
+    """
+    Calculates lambda0 based on precalculated lambda matrix
+
+    :param x:
+    :param θ:
+    :param prior_shock:
+    :param lambda_values_matrix:
+    :param h_candidates:
+    :param eb_candidates:
+    :param h_n_digits_precision:
+    :param eb_n_digits_precision:
+    :param h_dict:
+    :param e_dict:
+    :return:
+    """
+    #Go between 0 and 1
+    H = np.clip(np.e ** ((θ[0] + θ[1] * x + prior_shock)), 0., np.log(3)) # Normalized H: between 0 and log(3)
+    Eβ = np.clip(-np.e ** (θ[2] + θ[3] * x + prior_shock), -4., 1.1)
+    input_point = np.array([H, Eβ])
+
+    lambdas_sol = src.input_heb_to_lambda_con_norm(input_point, lambda_values_matrix,
+                                                   h_candidates, eb_candidates,
+                                                   h_n_digits_precision, eb_n_digits_precision,
+                                                   h_dict, e_dict)
+
+    return lambdas_sol
+
+
+def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks,
+                                       lambda_values_matrix,
+                                       h_candidates, eb_candidates, h_n_digits_precision,
+                                       eb_n_digits_precision, h_dict, e_dict
+                                       ):
+    nfirms = len(xs)
+    lambdas0 = np.empty((nfirms, 3))
+    for firm_i in range(nfirms):
+        lambdas0[firm_i, :] = src.from_theta_to_lambda0(xs[firm_i], θ,
+                                                        prior_shocks[firm_i],
+                                                        lambda_values_matrix,
+                                                        h_candidates, eb_candidates, h_n_digits_precision,
+                                                        eb_n_digits_precision, h_dict, e_dict
+                                                        )
+
+    return lambdas0
+
 
 
 def simulated_dmd(current_price: float, dmd_shock: float) -> float:
@@ -205,27 +255,6 @@ def generate_mean_std_pricing_decisions(df, policyF, lambdas_at_0, min_periods=3
         return std_dev_df.groupby('t').std_dev_prices.mean()[min_periods:]
 
 
-def std_moments_error(θ: np.ndarray, policyF, xs, mean_std_observed_prices,
-                      prior_shocks, df, min_periods=3) -> float:
-    """
-    Computes the **norm** (not gmm error) of the different between the
-    observed moments and the moments predicted by the model + θ
-
-    Moments: average (over firms) standard deviation for each time period
-
-    x: characteristics of firms
-    mean_std_observed_prices: mean (over firms) of standard deviation per t
-    """
-    # Generate one lambda0 per firm
-    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
-
-    mean_std_expected_prices = generate_mean_std_pricing_decisions(df, policyF,
-                                                                   lambdas0, min_periods)
-
-    return np.linalg.norm(mean_std_expected_prices.values
-                          - mean_std_observed_prices.values)
-
-
 def get_intersection_of_observed_and_expected_prices(mean_std_observed_prices: pd.Series,
                                                      df: pd.DataFrame, policyF,
                                                      lambdas0, min_periods):
@@ -258,7 +287,8 @@ def prepare_df_for_estimation(df):
 
 
 def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_prices: pd.Series,
-              prior_shocks: np.array, df: pd.DataFrame, min_periods: int = 3, w=None) -> float:
+              prior_shocks: np.array, df: pd.DataFrame, lambda_matrix_dict,
+              min_periods: int = 3, w=None) -> float:
     """
     Computes the gmm error of the different between the observed moments and
     the moments predicted by the model + θ
@@ -269,7 +299,15 @@ def gmm_error(θ: np.array, policyF: object, xs: np.array, mean_std_observed_pri
     mean_std_observed_prices: mean (over firms) of standard deviation per t
     w: weighting matrix for GMM objective
     """
-    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
+    lambda_values_matrix = lambda_matrix_dict['lambda_matrix']
+    h_candidates, eb_candidates = lambda_matrix_dict['h_candidates'], lambda_matrix_dict['eb_candidates']
+    h_n_digits_precision = lambda_matrix_dict['h_n_digits_precision']
+    eb_n_digits_precision = lambda_matrix_dict['eb_n_digits_precision']
+    h_dict, e_dict = lambda_matrix_dict['h_dict'], lambda_matrix_dict['e_dict']
+    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks, lambda_values_matrix,
+                                            h_candidates, eb_candidates, h_n_digits_precision,
+                                            eb_n_digits_precision, h_dict, e_dict)
+
 
     mean_std_observed_prices, mean_std_expected_prices = (
              get_intersection_of_observed_and_expected_prices(mean_std_observed_prices,
@@ -314,6 +352,7 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
                    prior_shocks: np.array, df: pd.DataFrame, len_df, firm_lengths,
                    simul_repetitions: int, taste_std_normal_shocks: np.array,
                    b0_std_normal_shocks: np.array, n_firms: int, max_t_to_consider: int,
+                   lambda_matrix_dict: dict,
                    min_periods: int=3, w=None) -> float:
     """
     Computes the gmm error of the different between the observed moments and
@@ -330,7 +369,14 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
     θ = θandΞ[:4]
     Ξ = θandΞ[4::]
 
-    lambdas0 = src.from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks)
+    lambda_values_matrix = lambda_matrix_dict['lambda_matrix']
+    h_candidates, eb_candidates = lambda_matrix_dict['h_candidates'], lambda_matrix_dict['eb_candidates']
+    h_n_digits_precision = lambda_matrix_dict['h_n_digits_precision']
+    eb_n_digits_precision = lambda_matrix_dict['eb_n_digits_precision']
+    h_dict, e_dict = lambda_matrix_dict['h_dict'], lambda_matrix_dict['e_dict']
+    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks, lambda_values_matrix,
+                                            h_candidates, eb_candidates, h_n_digits_precision,
+                                            eb_n_digits_precision, h_dict, e_dict)
 
     dmd_const_dict = param_array_to_dmd_constants(Ξ)
     γ, beta_shock_std = dmd_const_dict['γ'], dmd_const_dict['beta_shock_std']
@@ -339,7 +385,6 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
     # Redo taste_shocks and b0
     taste_shocks_ = taste_std_normal_shocks*taste_shock_std
     b0_ = np.clip(src.const.mature_beta + beta_shock_std*b0_std_normal_shocks, -np.inf, -1.05)
-
 
 
     exp_prices = []

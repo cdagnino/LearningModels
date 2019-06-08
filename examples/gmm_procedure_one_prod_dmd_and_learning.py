@@ -3,6 +3,7 @@ import dill
 import pandas as pd
 from scipy import optimize as opt
 import time
+import pickle
 from sklearn.preprocessing import MinMaxScaler
 import sys
 sys.path.append('../')
@@ -32,6 +33,12 @@ n_of_nelder_mead_tries= 8 #15
 
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.
           Method {method} with {maxiters} maxiters. Logs for x? {use_logs_for_x}""")
+
+
+#Load precomputed lambdas
+#############
+with open('../data/lambda_matrix_dict.pickle', 'rb') as f:
+    lambda_matrix_dict = pickle.load(f)
 
 
 #Load policy and value function
@@ -111,10 +118,8 @@ def error_w_data(θandΞres) -> float:
                               simul_repetitions=simul_repetitions, taste_std_normal_shocks=taste_std_normal_shocks,
                               b0_std_normal_shocks=b0_std_normal_shocks,
                               n_firms=n_firms, max_t_to_consider=max_t_to_consider,
+                              lambda_matrix_dict=lambda_matrix_dict,
                               min_periods=min_periods, w=None)
-
-
-
 
 
 start = time.time()
