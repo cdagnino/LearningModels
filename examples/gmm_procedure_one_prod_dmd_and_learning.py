@@ -26,9 +26,9 @@ simul_repetitions = 5 #simulation repetitions
 method = "mixed"  #"differential evolution", "Nelder-Mead", "mixed"
 
 # Mixed mthod params
-diff_evol_iterations = 10 #15
-nelder_mead_iters = 100 #100
-n_of_nelder_mead_tries= 8 #15
+diff_evol_iterations = 2 #15
+nelder_mead_iters = 10 #100
+n_of_nelder_mead_tries= 2 #15
 
 
 print(f"""Started at {time.asctime()}. Discount: {src.const.δ}.

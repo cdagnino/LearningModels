@@ -6,6 +6,7 @@ from scipy import optimize
 from scipy import optimize as opt
 from scipy.stats import truncnorm
 from .from_parameters_to_lambdas import reparam_lambdas, h_and_exp_betas_eqns, jac, input_heb_to_lambda_con_norm
+from .from_parameters_to_lambdas import all_lambdas_gen
 from typing import Tuple, List
 
 def gen_prior_shocks(nfirms, σerror=0.005):
@@ -70,9 +71,8 @@ def orig_from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks):
     return lambdas0
 
 
-def from_theta_to_lambda0(x, θ, prior_shock: float, lambda_values_matrix,
-                          h_candidates, eb_candidates, h_n_digits_precision,
-                          eb_n_digits_precision, h_dict, e_dict):
+@njit()
+def from_theta_to_lambda0(x, θ, prior_shock: float, lcoeffs1, lcoeffs2, lcoeffs3):
     """
     Calculates lambda0 based on precalculated lambda matrix
 
@@ -89,32 +89,32 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, lambda_values_matrix,
     :return:
     """
     #Go between 0 and 1
-    H = np.clip(np.e ** ((θ[0] + θ[1] * x + prior_shock)), 0., np.log(3)) # Normalized H: between 0 and log(3)
-    Eβ = np.clip(-np.e ** (θ[2] + θ[3] * x + prior_shock), -4., 1.1)
+    H = np.e ** ((θ[0] + θ[1] * x + prior_shock)) # Normalized H: between 0 and log(3)
+    Eβ = -np.e ** (θ[2] + θ[3] * x + prior_shock)
     input_point = np.array([H, Eβ])
 
-    lambdas_sol = src.input_heb_to_lambda_con_norm(input_point, lambda_values_matrix,
-                                                   h_candidates, eb_candidates,
-                                                   h_n_digits_precision, eb_n_digits_precision,
-                                                   h_dict, e_dict)
-
+    #lambdas_sol = input_heb_to_lambda_con_norm(input_point, lambda_values_matrix,
+    #                                               h_candidates, eb_candidates,
+    #                                               h_n_digits_precision, eb_n_digits_precision,
+    #                                               h_dict, e_dict, interpolate=False)
+    lambdas_sol = all_lambdas_gen(input_point[0], input_point[1], lcoeffs1, lcoeffs2, lcoeffs3)
     return lambdas_sol
 
 
-def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks,
-                                       lambda_values_matrix,
-                                       h_candidates, eb_candidates, h_n_digits_precision,
-                                       eb_n_digits_precision, h_dict, e_dict
-                                       ):
+@njit()
+def from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks, lcoeffs1, lcoeffs2, lcoeffs3):
     nfirms = len(xs)
     lambdas0 = np.empty((nfirms, 3))
     for firm_i in range(nfirms):
-        lambdas0[firm_i, :] = src.from_theta_to_lambda0(xs[firm_i], θ,
-                                                        prior_shocks[firm_i],
-                                                        lambda_values_matrix,
-                                                        h_candidates, eb_candidates, h_n_digits_precision,
-                                                        eb_n_digits_precision, h_dict, e_dict
-                                                        )
+        #lambdas0[firm_i, :] = from_theta_to_lambda0(xs[firm_i], θ,
+        #                                                prior_shocks[firm_i],
+        #                                                lambda_values_matrix,
+        #                                                h_candidates, eb_candidates, h_n_digits_precision,
+        #                                                eb_n_digits_precision, h_dict, e_dict
+        #                                                )
+        lambdas0[firm_i, :] = from_theta_to_lambda0(xs[firm_i], θ,
+                                                    prior_shocks[firm_i], lcoeffs1, lcoeffs2, lcoeffs3)
+
 
     return lambdas0
 
@@ -374,9 +374,10 @@ def full_gmm_error(θandΞ: np.array, policyF: object, xs: np.array, mean_std_ob
     h_n_digits_precision = lambda_matrix_dict['h_n_digits_precision']
     eb_n_digits_precision = lambda_matrix_dict['eb_n_digits_precision']
     h_dict, e_dict = lambda_matrix_dict['h_dict'], lambda_matrix_dict['e_dict']
-    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks, lambda_values_matrix,
-                                            h_candidates, eb_candidates, h_n_digits_precision,
-                                            eb_n_digits_precision, h_dict, e_dict)
+    lcoeffs1 = lambda_matrix_dict['lambda1coeffs']
+    lcoeffs2 = lambda_matrix_dict['lambda2coeffs']
+    lcoeffs3 = lambda_matrix_dict['lambda3coeffs']
+    lambdas0 = from_theta_to_lambda_for_all_firms(θ, xs, prior_shocks, lcoeffs1, lcoeffs2, lcoeffs3)
 
     dmd_const_dict = param_array_to_dmd_constants(Ξ)
     γ, beta_shock_std = dmd_const_dict['γ'], dmd_const_dict['beta_shock_std']
