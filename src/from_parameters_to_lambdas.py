@@ -21,7 +21,7 @@ def force_sum_to_1(orig_lambdas):
         # TODO: think if this is what I want: might make third lambda 0 too much
         return np.concatenate((orig_lambdas, np.array([0.])))
     else:
-        return np.concatenate((orig_lambdas, np.array([sum_lambdas])))
+        return np.concatenate((orig_lambdas, 1 - np.array([sum_lambdas])))
 
 
 def logit(p):
