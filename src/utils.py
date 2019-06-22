@@ -93,3 +93,11 @@ def draw_true_log_dmd(price, β, dmd_shock):
     return const.α + β * np.log(price) + dmd_shock
 
 
+def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
+    """
+    Given a lambda point, spits out optimal myopic price
+    """
+    # Elasticity implied by lambdas
+    elasticity = np.dot(lambdas, betas_transition)
+    assert elasticity < -1.0
+    return const.c / (1 + (1 / elasticity))
