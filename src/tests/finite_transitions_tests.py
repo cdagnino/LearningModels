@@ -4,6 +4,7 @@ from src import const
 from scipy.stats import norm
 from scipy import integrate
 from typing import Callable
+from src.utils import myopic_price
 
 
 def test_update_lambdas():
@@ -62,15 +63,6 @@ def test_eofV():
         summation = np.dot(np.e ** (betas_transition * np.log(p[:, np.newaxis])), lambdas)
 
         return constant_part * summation
-
-    def myopic_price(lambdas: np.ndarray, betas_transition=const.betas_transition):
-        """
-        Given a lambda point, spits out optimal myopic price
-        """
-        # Elasticity implied by lambdas
-        elasticity = np.dot(lambdas, betas_transition)  # -2.2
-        assert elasticity < -1.0
-        return const.c / (1 + (1 / elasticity))
 
     def v0(lambdas_except_last: np.ndarray) -> Callable:
         """

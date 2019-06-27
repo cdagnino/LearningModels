@@ -54,7 +54,10 @@ def from_theta_to_lambda0(x, θ, prior_shock: float, starting_values=np.array([0
         sol = optimize.minimize(fun_, x0=src.logit(np.array([0.1, 0.08])), method='Nelder-Mead')
         lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
         if not sol.success:
-            print(f"Theta to lambda0 didn't converge", sol.x, lambdas_sol)
+            sol = optimize.minimize(fun_, x0=src.logit(np.array([0.7, 0.1])), method='Nelder-Mead')
+            lambdas_sol = force_sum_to_1(reparam_lambdas(sol.x))
+            if not sol.success:
+                print(f"Theta to lambda0 didn't converge", sol.x, lambdas_sol)
 
     return lambdas_sol
 
